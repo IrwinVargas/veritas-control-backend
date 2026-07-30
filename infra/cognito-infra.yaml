@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Serverless: Configuración de Amazon Cognito para SaaS Legal Multi-tenant'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+    Description: Entorno de despliegue de la plataforma legal.
+
+Resources:
+  # 1. POOL DE USUARIOS CENTRALIZADO
+  LegalUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'veritas-control-user-pool-${Environment}'
+      
+      # Configuración de inicio de sesión: Se usará el Correo Electrónico
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      
+      # Políticas de contraseñas robustas para cumplimiento corporativo
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+
+      # ATRIBUTOS PERSONALIZADOS PARA CONTROL MULTI-TENANT & ROLES
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        # Identificador único del Bufete (UUID)
+        - Name: tenant_id
+          AttributeDataType: String
+          Required: false
+          Mutable: false # Fijo una vez creado para evitar su alteración por código
+        # Rol Jurídico (Socio, Asociado, Pasante, Contador)
+        - Name: role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+
+  # 2. CLIENTE DE APLICACIÓN (Conexión directa para el Frontend en React)
+  LegalUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'veritas-control-react-client-${Environment}'
+      UserPoolId: !Ref LegalUserPool
+      GenerateSecret: false # Debe ser falso para aplicaciones SPA / React
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH # Protocolo SRP seguro usado nativamente por Amplify Auth
+
+# 📤 SALIDAS DE INFRAESTRUCTURA (Para copiar directamente a tu archivo .env de React)
+Outputs:
+  AwsRegion:
+    Description: 'Región de AWS donde se desplegó la infraestructura'
+    Value: !Ref 'AWS::Region'
+  CognitoUserPoolId:
+    Description: 'ID del User Pool generado para configurar en el Frontend'
+    Value: !Ref LegalUserPool
+  CognitoAppClientId:
+    Description: 'ID del Cliente de Aplicación generado para configurar en el Frontend'
+    Value: !Ref LegalUserPoolClient
