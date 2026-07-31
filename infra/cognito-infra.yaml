@@ -64,14 +64,31 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH # Protocolo SRP seguro usado nativamente por Amplify Auth
 
-# 📤 SALIDAS DE INFRAESTRUCTURA (Para copiar directamente a tu archivo .env de React)
-Outputs:
-  AwsRegion:
-    Description: 'Región de AWS donde se desplegó la infraestructura'
-    Value: !Ref 'AWS::Region'
-  CognitoUserPoolId:
-    Description: 'ID del User Pool generado para configurar en el Frontend'
-    Value: !Ref LegalUserPool
-  CognitoAppClientId:
-    Description: 'ID del Cliente de Aplicación generado para configurar en el Frontend'
-    Value: !Ref LegalUserPoolClient
+# =========================================================================
+# 3. PARÁMETROS EN AWS SYSTEMS MANAGER (PARAMETER STORE)
+# =========================================================================
+  
+  ParamUserPoolId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      # Estructura de nombres jerárquica y limpia standard en la industria
+      Name: !Sub '/veritas-control/${Environment}/cognito/user-pool-id'
+      Type: String
+      Value: !Ref LegalUserPool
+      Description: ID público del User Pool de Cognito para este entorno.
+
+  ParamAppClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/cognito/app-client-id'
+      Type: String
+      Value: !Ref LegalUserPoolClient
+      Description: ID público del Cliente de Aplicación de Cognito para React.
+
+  ParamAwsRegion:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/general/aws-region'
+      Type: String
+      Value: !Ref 'AWS::Region'
+      Description: Región geográfica de AWS donde corre la plataforma.
