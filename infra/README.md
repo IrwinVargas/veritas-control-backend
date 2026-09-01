@@ -22,7 +22,8 @@ El archivo se llama `cognito-infra.yaml`
 aws cloudformation create-stack \
   --stack-name veritas-control-cognito-dev \
   --template-body file://cognito-infra.yaml \
-  --parameters ParameterKey=Environment,ParameterValue=dev
+  --parameters ParameterKey=Environment,ParameterValue=dev \
+  --profile tu-profile
 
 ```
 **Nota:** `ParameterValue` debe tener el valor con base a al ambiente donde se pretende desplegar `[dev, qa, prod]`.

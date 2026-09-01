@@ -51,6 +51,17 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
+        - Name: bufete_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true # Permitimos que sea mutable por si la firma cambia de razón social
+        - Name: bufete_rfc
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: "12"
+            MaxLength: "13"
 
   # 2. CLIENTE DE APLICACIÓN (Conexión directa para el Frontend en React)
   LegalUserPoolClient:

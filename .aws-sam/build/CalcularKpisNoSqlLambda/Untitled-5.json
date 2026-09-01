@@ -1,0 +1,13 @@
+{
+  "Records": [{
+    "s3": {
+      "bucket": {
+        "name": "veritas-sat-listas-negras-temporal-049255850526"
+      },
+      "object": {
+        "key": "Listado_completo_69-B.csv"
+      }
+    }
+  }
+    ]
+}

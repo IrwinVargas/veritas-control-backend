@@ -1,0 +1,1499 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31 # Activa SAM
+Description: 'Backend Serverless de Veritas Control optimizado con AWS SAM'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+  CognitoUserPoolArn:
+    Type: String
+
+Resources:
+  # API GATEWAY CENTRAL CON SWAGGER INTEGRADO
+  VeritasApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      DefinitionBody:
+        openapi: "3.0.1"
+        info:
+          title: "Veritas Control - API de Gestión Jurídica"
+          version: "1.0.0"
+
+        components:
+          securitySchemes:
+            CognitoAuthorizer:
+              type: "apiKey"
+              name: "Authorization"
+              in: "header"
+              x-amazon-apigateway-authtype: "cognito_user_pools"
+              x-amazon-apigateway-authorizer:
+                type: "cognito_user_pools"
+                providerARNs:
+                  - !Ref CognitoUserPoolArn
+        paths:
+          /swagger-json:
+            get:
+              summary: "Descargar esquema OpenAPI de Veritas Control"
+              responses:
+                '200':
+                  description: "Estructura JSON de Swagger exitosa."
+              # Retorna un mock de la especificación técnica de forma directa
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseTemplates:
+                      application/json: "{\"info\": {\"title\": \"Veritas Control\", \"version\": \"1.0.0\"}, \"paths\": {}}"
+          /registro:
+            post:
+              summary: "Alta Administrativa de Personal (Solo Socios)"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RegistroLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201':
+                  description: "Usuario registrado con éxito."
+
+            options:
+              summary: "Soporte de CORS Preflight"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+          /finanzas/cargar-excel:
+            post:
+              summary: "Subir archivo Excel del SAT y vaciar datos a Postgres"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CargaExcelLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200':
+                  description: "Excel cargado e indexado de forma correcta."
+            options:
+              summary: "CORS Cargar Excel"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Origin: { schema: { type: "string" } }
+                    Access-Control-Allow-Methods: { schema: { type: "string" } }
+                    Access-Control-Allow-Headers: { schema: { type: "string" } }
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+
+          /finanzas/dashboard-metricas:
+            get:
+              summary: "Obtener calculos macro para las tarjetas y graficas"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST" # API Gateway invoca a Lambda internamente como POST siempre
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricasLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200':
+                  description: "Métricas consolidadas calculadas con éxito."
+            options:
+              summary: "CORS Metricas"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Origin: { schema: { type: "string" } }
+                    Access-Control-Allow-Methods: { schema: { type: "string" } }
+                    Access-Control-Allow-Headers: { schema: { type: "string" } }
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+
+          /finanzas/url-firmada:
+            get:
+              summary: "Solicitar pase de subida seguro directo a S3"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerarUrlFirmadaLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200':
+                  description: "Métricas consolidadas calculadas con éxito."
+            options:
+              summary: "CORS Metricas"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Origin: { schema: { type: "string" } }
+                    Access-Control-Allow-Methods: { schema: { type: "string" } }
+                    Access-Control-Allow-Headers: { schema: { type: "string" } }
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+          /finanzas/clientes:
+            get:
+              summary: "Obtener catálogo único de clientes"
+              security: 
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListaClientesLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200': { description: "Éxito" }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/generar:
+            post:
+              summary: "Encender la Step Function pericial en segundo plano"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadDisparadorLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '202': { description: "Orquestador encendido con éxito." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/expediente:
+            get:
+              summary: "Consultar estatus de PDFs y descargar URLs firmadas de S3"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadListarArchivosLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200': { description: "Estatus recuperado en 2ms." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/preventivo/contrato:
+            post:
+              summary: "Encender la Step Function pericial en segundo plano"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadPreventivoContratoLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '202': { description: "Orquestador encendido con éxito." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /finanzas/auditoria-sat:
+            get:
+              summary: "Consultar lista negra del sat"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuditoriaListaNegraLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200': { description: "Estatus recuperado en 2ms." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/cliente:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrearClienteManualLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/preventivo/planeacion:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadPreventivoPlaneacionLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+          /materialidad/preventivo/bimestral:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadPreventivoBimestralLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+          /materialidad/cliente/producto:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadPreventivoBimestralLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+  # =========================================================================
+  # RECURSOS DE COMPUTO (LAMBDA)
+  # =====================================================================
+  CargaExcelLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-carga-excel-${Environment}'
+      Runtime: python3.10
+      Architectures:
+        - x86_64
+      Handler: carga_excel_handler.handler
+      CodeUri: ./lambdas/cargar_excel/
+      Timeout: 90
+      MemorySize: 512
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VeritasLambdasSecurityGroup.Id
+        SubnetIds:
+          - !Ref VeritasSubnetPrivadaUno
+          - !Ref VeritasSubnetPrivadaDos
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
+          DB_NAME: "veritas_db"
+          DB_USER: "veritas_admin"
+          DB_PORT: "5432"
+          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "secretsmanager:GetSecretValue"
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:veritas-control/dev/database*'
+    Metadata:
+      BuildMethod: python3.10
+
+  ListaClientesLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-lista-clientes-${Environment}'
+      Runtime: python3.10
+      Handler: lista_clientes_handler.handler
+      CodeUri: ./lambdas/lista_clientes/
+      Timeout: 15
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VeritasLambdasSecurityGroup.Id
+        SubnetIds:
+          - !Ref VeritasSubnetPrivadaUno
+          - !Ref VeritasSubnetPrivadaDos
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
+          DB_NAME: "veritas_db"
+          DB_USER: "veritas_admin"
+          DB_PORT: "5432"
+          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /finanzas/clientes
+            Method: get
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  MetricasLambda:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.10
+    Properties:
+      FunctionName: !Sub 'veritas-control-dashboard-metricas-${Environment}'
+      Runtime: python3.10
+      Handler: metricas_handler.handler
+      CodeUri: ./lambdas/metricas/
+      Timeout: 15
+      MemorySize: 256
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasFinanzasNoSqlTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref VeritasFinanzasNoSqlTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /finanzas/dashboard-metricas
+            Method: get
+            RestApiId: !Ref VeritasApi
+
+  RegistroLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-registro-handler-${Environment}'
+      Runtime: python3.10
+      Handler: registro_handler.handler
+      CodeUri: ./lambdas/registro/ 
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          USER_POOL_ID: !Sub '{{resolve:ssm:/veritas-control/${Environment}/cognito/user-pool-id}}'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+              Resource: !Ref CognitoUserPoolArn
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /registro
+            Method: post
+            RestApiId: !Ref VeritasApi
+  
+  CalcularKpisNoSqlLambda:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.10
+    Properties:
+      FunctionName: !Sub 'veritas-control-calcular-kpis-nosql-${Environment}'
+      Runtime: python3.10
+      Handler: calcular_kpis_nosql_handler.handler
+      CodeUri: ./lambdas/calcular_kpis/
+      Timeout: 60
+      MemorySize: 512
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasFinanzasNoSqlTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasFinanzasNoSqlTable }
+  
+  GenerarUrlFirmadaLambda:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.10
+    Properties:
+      FunctionName: !Sub 'veritas-control-solicitar-pase-s3-${Environment}'
+      Runtime: python3.10
+      Handler: url_firmada_handler.handler
+      CodeUri: ./lambdas/url_firmada/
+      Timeout: 10
+      MemorySize: 128
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref VeritasFacturasS3Bucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [ "s3:PutObject" ]
+              Resource: !Sub 'arn:aws:s3:::${VeritasFacturasS3Bucket}/*'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /finanzas/url-firmada
+            Method: get
+            RestApiId: !Ref VeritasApi
+
+  ParserS3Lambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-v3-parser-s3-${Environment}'
+      Runtime: python3.10
+      Handler: parser_s3_handler.handler
+      CodeUri: ./lambdas/parser_s3/
+      Timeout: 60
+      MemorySize: 512
+      Architectures: [x86_64]
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub 'veritas-control-facturas-sat-${Environment}-${AWS::AccountId}'
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadDisparadorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-disparador-${Environment}'
+      Runtime: python3.10
+      Handler: disparador_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 15
+      MemorySize: 128
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [ "states:StartExecution" ]
+              Resource: !Ref VeritasMaterialidadStateMachine
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /materialidad/generar
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadListarArchivosLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-listar-archivos-${Environment}'
+      Runtime: python3.10
+      Handler: listar_archivos_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 15
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        # Permiso de lectura atómica sobre DynamoDB
+        - DynamoDBReadPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - S3ReadPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /materialidad/expediente
+            Method: get
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadContratoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-contrato-${Environment}'
+      Runtime: python3.10
+      Handler: contrato_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "bedrock:InvokeModel"
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*" 
+            - Effect: Allow
+              Action:
+                - "dynamodb:PutItem"
+                - "dynamodb:GetItem"
+                - "dynamodb:UpdateItem"
+                - "dynamodb:DeleteItem"
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/veritas-control-materialidad-status-${Environment}'
+            - Effect: Allow
+              Action:
+                - "s3:PutObject"
+                - "s3:GetObject"
+              Resource: !Sub 'arn:aws:s3:::veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}/*'
+    Metadata:
+      BuildMethod: python3.10
+  
+  MaterialidadPlaneacionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-planeacion-${Environment}'
+      Runtime: python3.10
+      Handler: planeacion_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "bedrock:InvokeModel"
+              Resource: "arn:aws:bedrock:us-east-1::foundation-model/*"
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadComunicacionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-comunicacion-${Environment}'
+      Runtime: python3.10
+      Handler: comunicacion_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadEvidenciaLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-evidencia-${Environment}'
+      Runtime: python3.10
+      Handler: evidencia_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadConsolidadorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-consolidador-${Environment}'
+      Runtime: python3.10
+      Handler: consolidador_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 30
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadPreventivoContratoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-prev-contrato-${Environment}'
+      Runtime: python3.10
+      Handler: preventivo_contrato_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 40
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["bedrock:InvokeModel"]
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*" 
+        - S3CrudPolicy: 
+            BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/preventivo/contrato, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
+  AuditoriaListaNegraLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'certeza-control-auditoria-69b-${Environment}'
+      Runtime: python3.10
+      Handler: auditoria_69b_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 20
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VeritasLambdasSecurityGroup.Id
+        SubnetIds:
+          - !Ref VeritasSubnetPrivadaUno
+          - !Ref VeritasSubnetPrivadaDos
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
+          DB_NAME: "veritas_db"
+          DB_USER: "veritas_admin"
+          DB_PORT: "5432"
+          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /finanzas/auditoria-sat
+            Method: get
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+  
+  LambdaDescargadoraSAT:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-descarga-lista-negra-csv-${Environment}'
+      Runtime: python3.10
+      Handler: descargar_csv_lista_negra_handler.handler
+      CodeUri: ./lambdas/archivo_lista_negra_sat/
+      Timeout: 90
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref S3BucketTemporalSAT
+      Environment:
+        Variables:
+          URL_CSV_SAT: "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Listado_completo_69-B.csv"
+          BUCKET_DESTINO: !Ref S3BucketTemporalSAT
+      Events:
+        CronDiarioSAT:
+          Type: Schedule
+          Properties:
+            Schedule: "cron(0 8 * * ? *)" # Corre a las 02:00 AM de México de forma automática
+    Metadata:
+      BuildMethod: python3.10
+
+  LambdaInsertarListaNegraDB:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-insertar-lista-negra-${Environment}'
+      Runtime: python3.10
+      Handler: insertar_lista_negra_handler.handler
+      CodeUri: ./lambdas/insertar_lista_negra_sat/
+      Timeout: 300
+      MemorySize: 512
+      Architectures: 
+        - x86_64
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VeritasLambdasSecurityGroup.Id
+        SubnetIds:
+          - !Ref VeritasSubnetPrivadaUno
+          - !Ref VeritasSubnetPrivadaDos
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref S3BucketTemporalSAT
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
+          DB_NAME: "veritas_db"
+          DB_USER: "veritas_admin"
+          DB_PORT: "5432"
+          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      Events:
+        TriggerArchivoSAT:
+          Type: S3
+          Properties:
+            Bucket: !Ref S3BucketTemporalSAT
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .csv
+    Metadata:
+      BuildMethod: python3.10
+
+  CrearClienteManualLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-cliente-manual-${Environment}'
+      Runtime: python3.10
+      Handler: crear_cliente_manual_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 15
+      MemorySize: 128
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt VeritasLambdasSecurityGroup.Id
+        SubnetIds:
+          - !Ref VeritasSubnetPrivadaUno
+          - !Ref VeritasSubnetPrivadaDos
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
+          DB_NAME: "veritas_db"
+          DB_USER: "veritas_admin"
+          DB_PORT: "5432"
+          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /materialidad/cliente
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadPreventivoPlaneacionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-prev-planeacion-${Environment}'
+      Runtime: python3.10
+      Handler: preventivo_planeacion_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 45
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["bedrock:InvokeModel"]
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*" 
+        - S3CrudPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/preventivo/planeacion, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadPreventivoBimestralLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-prev-bimestral-${Environment}'
+      Runtime: python3.10
+      Handler: preventivo_bimestral_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["bedrock:InvokeModel"]
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*" 
+        - S3CrudPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/preventivo/bimestral, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
+  GuardarProductoNoSqlLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-nosql-producto-${Environment}'
+      Runtime: python3.10
+      Handler: guardar_producto_nosql_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 15
+      MemorySize: 128
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/cliente/producto, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
+  VeritasLambdasSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Grupo de seguridad para el computo de las Lambdas de Veritas"
+      VpcId: !Ref VeritasVCP
+
+  VeritasLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'veritas-control-lambda-execution-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: ["sts:AssumeRole"]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+  # =========================================================================
+  # PUENTE DE RED: ENDPOINT DE GATEWAY PRIVADO
+  # =========================================================================
+  VeritasS3VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref VeritasVCP
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref VeritasTablaRuteoPrivada
+
+  # =========================================================================
+  # TABLA NOSQL (Amazon DynamoDB)
+  # =========================================================================
+  VeritasFinanzasNoSqlTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub 'veritas-control-kpis-financieros-${Environment}'
+      PrimaryKey:
+        Name: tenant_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  VeritasMaterialidadNoSqlTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub 'veritas-control-materialidad-status-${Environment}'
+      PrimaryKey: { Name: tenant_rfc, Type: String }
+
+# =========================================================================
+# REPOSITORIO DE ALMACENAMIENTO FISCAL (Amazon S3)
+# =========================================================================
+  VeritasMaterialidadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  VeritasFacturasS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'veritas-control-facturas-sat-${Environment}-${AWS::AccountId}'
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['PUT', 'POST']
+            AllowedOrigins: ['http://localhost:5173'] # Tu URL local permitida
+            MaxAge: 3000
+
+  S3BucketTemporalSAT:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
+# =========================================================================
+# MÁQUINA DE ESTADOS (Disparada en automático por S3)
+# =========================================================================
+  VeritasMaterialidadStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'veritas-control-materialidad-orquestador-${Environment}'
+      Definition:
+        Comment: "Orquestador asincrono pericial para generacion masiva de PDFs con IA"
+        StartAt: ProcesamientoParaleloMaterialidad
+        States:
+          ProcesamientoParaleloMaterialidad:
+            Type: Parallel
+            Next: ConsolidarExpedienteFinal
+            Branches:
+              # Rama 1: Contratos
+              - StartAt: GenerarFaseContrato
+                States:
+                  GenerarFaseContrato:
+                    Type: Task
+                    Resource: !GetAtt MaterialidadContratoLambda.Arn
+                    End: true
+              # Rama 2: Planeación y Benchmarking
+              - StartAt: GenerarFasePlaneacion
+                States:
+                  GenerarFasePlaneacion:
+                    Type: Task
+                    Resource: !GetAtt MaterialidadPlaneacionLambda.Arn
+                    End: true
+              # Rama 3: Comunicación Empresarial
+              - StartAt: GenerarFaseComunicacion
+                States:
+                  GenerarFaseComunicacion:
+                    Type: Task
+                    Resource: !GetAtt MaterialidadComunicacionLambda.Arn
+                    End: true
+              # Rama 4: Evidencias Digitales y Facturas
+              - StartAt: GenerarFaseEvidenciaFacturas
+                States:
+                  GenerarFaseEvidenciaFacturas:
+                    Type: Task
+                    Resource: !GetAtt MaterialidadEvidenciaLambda.Arn
+                    End: true
+
+          ConsolidarExpedienteFinal:
+            Type: Task
+            Resource: !GetAtt MaterialidadConsolidadorLambda.Arn
+            End: true
+      Policies:
+        - LambdaInvokePolicy: { FunctionName: !Ref MaterialidadContratoLambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref MaterialidadPlaneacionLambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref MaterialidadComunicacionLambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref MaterialidadEvidenciaLambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref MaterialidadConsolidadorLambda }
+
+  VeritasProcesadorS3StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'veritas-control-s3-procesador-${Environment}'
+      Definition:
+        Comment: "Orquestador de eventos contables disparado por S3"
+        StartAt: ParsearDocumentoS3
+        States:
+          ParsearDocumentoS3:
+            Type: Task
+            Resource: !GetAtt ParserS3Lambda.Arn
+            Next: InyeccionParalelaCQRS
+          InyeccionParalelaCQRS:
+            Type: Parallel
+            End: true
+            Branches:
+              - StartAt: GuardarPostgresCrudo
+                States:
+                  GuardarPostgresCrudo:
+                    Type: Task
+                    Resource: !GetAtt CargaExcelLambda.Arn
+                    TimeoutSeconds: 40
+                    End: true
+              - StartAt: CalcularKPIsNoSql
+                States:
+                  CalcularKPIsNoSql:
+                    Type: Task
+                    Resource: !GetAtt CalcularKpisNoSqlLambda.Arn
+                    End: true
+      Policies:
+        - LambdaInvokePolicy: { FunctionName: !Ref ParserS3Lambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref CargaExcelLambda }
+        - LambdaInvokePolicy: { FunctionName: !Ref CalcularKpisNoSqlLambda }
+      # 🚀 DISPARADOR AUTOMÁTICO DE EVENTOS (EventBridge Rule)
+      Events:
+        FacturaSubidaS3Event:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: default
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [ !Ref VeritasFacturasS3Bucket ]
+
+# =========================================================================
+# SECCIÓN DE DATABASE Y SEGURIDAD
+# =========================================================================
+  VeritasVCP:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-Veritas-Control-VPC'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-Veritas-Control-IGW'
+  
+  VeritasVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VeritasVCP
+      InternetGatewayId: !Ref InternetGateway
+
+  VeritasSubnetPrivadaUno:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VeritasVCP
+      CidrBlock: "10.0.1.0/24" 
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "Veritas Control - Subred Privada Aislada 1A"
+
+  VeritasSubnetPrivadaDos:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VeritasVCP
+      CidrBlock: "10.0.2.0/24"
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "Veritas Control - Subred Privada Aislada 1B"
+
+  VeritasTablaRuteoPrivada:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VeritasVCP
+      Tags: [{ Key: Name, Value: "Veritas Control - Tabla de Ruteo Privada" }]
+
+  VeritasPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VeritasVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  VeritasAsociacionRuteoPrivadaUno:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VeritasSubnetPrivadaUno
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+
+  VeritasAsociacionRuteoPrivadaDos:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VeritasSubnetPrivadaDos
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+
+  VeritasDbSubnetGroupV2:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Grupo de subredes integrado para el cluster de Aurora Serverless"
+      SubnetIds:
+        - !Ref VeritasSubnetPrivadaUno
+        - !Ref VeritasSubnetPrivadaDos
+  
+
+  VeritasDbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Permitir acceso a Postgres unicamente desde las Lambdas del SaaS"
+      VpcId: !Ref VeritasVCP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !GetAtt VeritasLambdasSecurityGroup.Id
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "0.0.0.0/0"
+
+  # INSTANCIA DE LECTURA/ESCRITURA DENTRO DEL CLUSTER
+  VeritasPostgresDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub 'veritas-control-db-${Environment}'
+      AllocatedStorage: '20' # 20 GB (Máximo permitido gratis en Free Tier)
+      DBInstanceClass: db.t3.micro # Tipo de instancia 100% gratuita por 12 meses
+      Engine: postgres
+      EngineVersion: '15'
+      DBName: veritas_db
+      MasterUsername: veritas_admin
+      MasterUserPassword: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+      DBSubnetGroupName: !Ref VeritasDbSubnetGroupV2
+      VPCSecurityGroups:
+        - !GetAtt VeritasDbSecurityGroup.Id
+      PubliclyAccessible: true
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
