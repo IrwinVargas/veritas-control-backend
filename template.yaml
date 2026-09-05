@@ -10,6 +10,21 @@ Parameters:
   CognitoUserPoolArn:
     Type: String
 
+Globals:
+  Function:
+    Timeout: 90
+    MemorySize: 512
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
+        DB_PORT: "5432"
+        DB_USER: "veritas_admin"
+        DB_NAME: "veritas_db"
+        SECRET_ARN_PARAM_PATH: !Sub '/veritas-control/${Environment}/rds/postgres-secret-arn'
+
 Resources:
   # API GATEWAY CENTRAL CON SWAGGER INTEGRADO
   VeritasApi:
@@ -590,28 +605,15 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-carga-excel-${Environment}'
-      Runtime: python3.10
-      Architectures:
-        - x86_64
       Handler: carga_excel_handler.handler
       CodeUri: ./lambdas/cargar_excel/
-      Timeout: 90
-      MemorySize: 512
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !GetAtt VeritasLambdasSecurityGroup.Id
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - !Ref VeritasSubnetPrivadaUno
-          - !Ref VeritasSubnetPrivadaDos
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
-          DB_NAME: "veritas_db"
-          DB_USER: "veritas_admin"
-          DB_PORT: "5432"
-          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
-      
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -625,27 +627,15 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-lista-clientes-${Environment}'
-      Runtime: python3.10
       Handler: lista_clientes_handler.handler
       CodeUri: ./lambdas/lista_clientes/
-      Timeout: 15
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !GetAtt VeritasLambdasSecurityGroup.Id
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - !Ref VeritasSubnetPrivadaUno
-          - !Ref VeritasSubnetPrivadaDos
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
-          DB_NAME: "veritas_db"
-          DB_USER: "veritas_admin"
-          DB_PORT: "5432"
-          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Events:
         ApiEvent:
           Type: Api
@@ -662,19 +652,14 @@ Resources:
       BuildMethod: python3.10
     Properties:
       FunctionName: !Sub 'veritas-control-dashboard-metricas-${Environment}'
-      Runtime: python3.10
       Handler: metricas_handler.handler
       CodeUri: ./lambdas/metricas/
-      Timeout: 15
-      MemorySize: 256
-      Architectures:
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasFinanzasNoSqlTable
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/finanzas-table-name}}'
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref VeritasFinanzasNoSqlTable
+            TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/finanzas-table-name}}'
       Events:
         ApiEvent:
           Type: Api
@@ -687,11 +672,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-registro-handler-${Environment}'
-      Runtime: python3.10
       Handler: registro_handler.handler
-      CodeUri: ./lambdas/registro/ 
-      Timeout: 10
-      MemorySize: 128
+      CodeUri: ./lambdas/registro/
       Environment:
         Variables:
           USER_POOL_ID: !Sub '{{resolve:ssm:/veritas-control/${Environment}/cognito/user-pool-id}}'
@@ -715,18 +697,13 @@ Resources:
       BuildMethod: python3.10
     Properties:
       FunctionName: !Sub 'veritas-control-calcular-kpis-nosql-${Environment}'
-      Runtime: python3.10
       Handler: calcular_kpis_nosql_handler.handler
       CodeUri: ./lambdas/calcular_kpis/
-      Timeout: 60
-      MemorySize: 512
-      Architectures:
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasFinanzasNoSqlTable
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/finanzas-table-name}}'
       Policies:
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasFinanzasNoSqlTable }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/finanzas-table-name}}' }
   
   GenerarUrlFirmadaLambda:
     Type: AWS::Serverless::Function
@@ -734,16 +711,11 @@ Resources:
       BuildMethod: python3.10
     Properties:
       FunctionName: !Sub 'veritas-control-solicitar-pase-s3-${Environment}'
-      Runtime: python3.10
       Handler: url_firmada_handler.handler
       CodeUri: ./lambdas/url_firmada/
-      Timeout: 10
-      MemorySize: 128
-      Architectures:
-        - x86_64
       Environment:
         Variables:
-          BUCKET_NAME: !Ref VeritasFacturasS3Bucket
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -761,12 +733,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-v3-parser-s3-${Environment}'
-      Runtime: python3.10
       Handler: parser_s3_handler.handler
       CodeUri: ./lambdas/parser_s3/
-      Timeout: 60
-      MemorySize: 512
-      Architectures: [x86_64]
       Policies:
         - S3ReadPolicy:
             BucketName: !Sub 'veritas-control-facturas-sat-${Environment}-${AWS::AccountId}'
@@ -777,11 +745,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-disparador-${Environment}'
-      Runtime: python3.10
       Handler: disparador_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 15
-      MemorySize: 128
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
@@ -804,21 +769,16 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-listar-archivos-${Environment}'
-      Runtime: python3.10
       Handler: listar_archivos_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 15
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         # Permiso de lectura atómica sobre DynamoDB
-        - DynamoDBReadPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
-        - S3ReadPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
+        - DynamoDBReadPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
+        - S3ReadPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -833,17 +793,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-contrato-${Environment}'
-      Runtime: python3.10
       Handler: contrato_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures:
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -871,13 +826,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-planeacion-${Environment}'
-      Runtime: python3.10
       Handler: planeacion_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Policies:
         - Statement:
             - Effect: Allow
@@ -891,13 +841,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-comunicacion-${Environment}'
-      Runtime: python3.10
       Handler: comunicacion_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures: 
-        - x86_64
     Metadata:
       BuildMethod: python3.10
 
@@ -905,13 +850,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-evidencia-${Environment}'
-      Runtime: python3.10
       Handler: evidencia_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures: 
-        - x86_64
     Metadata:
       BuildMethod: python3.10
 
@@ -919,18 +859,13 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-consolidador-${Environment}'
-      Runtime: python3.10
       Handler: consolidador_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 30
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
       Policies:
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
     Metadata:
       BuildMethod: python3.10
 
@@ -938,17 +873,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-prev-contrato-${Environment}'
-      Runtime: python3.10
       Handler: preventivo_contrato_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 40
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -958,7 +888,7 @@ Resources:
                 - "arn:aws:bedrock:*:*:foundation-model/*" 
         - S3CrudPolicy: 
             BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -969,28 +899,16 @@ Resources:
   AuditoriaListaNegraLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'certeza-control-auditoria-69b-${Environment}'
-      Runtime: python3.10
+      FunctionName: !Sub 'veritas-control-auditoria-69b-${Environment}'
       Handler: auditoria_69b_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 20
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !GetAtt VeritasLambdasSecurityGroup.Id
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - !Ref VeritasSubnetPrivadaUno
-          - !Ref VeritasSubnetPrivadaDos
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
-          DB_NAME: "veritas_db"
-          DB_USER: "veritas_admin"
-          DB_PORT: "5432"
-          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Events:
         ApiEvent:
           Type: Api
@@ -1005,20 +923,15 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-descarga-lista-negra-csv-${Environment}'
-      Runtime: python3.10
       Handler: descargar_csv_lista_negra_handler.handler
       CodeUri: ./lambdas/archivo_lista_negra_sat/
-      Timeout: 90
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Policies:
         - S3CrudPolicy:
-            BucketName: !Ref S3BucketTemporalSAT
+            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
       Environment:
         Variables:
           URL_CSV_SAT: "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Listado_completo_69-B.csv"
-          BUCKET_DESTINO: !Ref S3BucketTemporalSAT
+          BUCKET_DESTINO: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
       Events:
         CronDiarioSAT:
           Type: Schedule
@@ -1031,35 +944,23 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-insertar-lista-negra-${Environment}'
-      Runtime: python3.10
       Handler: insertar_lista_negra_handler.handler
       CodeUri: ./lambdas/insertar_lista_negra_sat/
-      Timeout: 300
-      MemorySize: 512
-      Architectures: 
-        - x86_64
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !GetAtt VeritasLambdasSecurityGroup.Id
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - !Ref VeritasSubnetPrivadaUno
-          - !Ref VeritasSubnetPrivadaDos
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Policies:
         - S3ReadPolicy:
-            BucketName: !Ref S3BucketTemporalSAT
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
-          DB_NAME: "veritas_db"
-          DB_USER: "veritas_admin"
-          DB_PORT: "5432"
-          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
+            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
       Events:
         TriggerArchivoSAT:
           Type: S3
           Properties:
-            Bucket: !Ref S3BucketTemporalSAT
+            Bucket: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
             Events: s3:ObjectCreated:*
             Filter:
               S3Key:
@@ -1073,27 +974,17 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-cliente-manual-${Environment}'
-      Runtime: python3.10
       Handler: crear_cliente_manual_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 15
-      MemorySize: 128
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !GetAtt VeritasLambdasSecurityGroup.Id
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - !Ref VeritasSubnetPrivadaUno
-          - !Ref VeritasSubnetPrivadaDos
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Architectures: 
         - x86_64
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt VeritasPostgresDB.Endpoint.Address
-          DB_NAME: "veritas_db"
-          DB_USER: "veritas_admin"
-          DB_PORT: "5432"
-          DB_PASSWORD: '{{resolve:secretsmanager:veritas-control/dev/database:SecretString:password}}'
       Events:
         ApiEvent:
           Type: Api
@@ -1108,17 +999,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-prev-planeacion-${Environment}'
-      Runtime: python3.10
       Handler: preventivo_planeacion_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 45
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -1126,8 +1012,8 @@ Resources:
               Resource:
                 - "arn:aws:bedrock:*:*:inference-profile/*"
                 - "arn:aws:bedrock:*:*:foundation-model/*" 
-        - S3CrudPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -1139,17 +1025,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-prev-bimestral-${Environment}'
-      Runtime: python3.10
       Handler: preventivo_bimestral_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -1157,8 +1038,8 @@ Resources:
               Resource:
                 - "arn:aws:bedrock:*:*:inference-profile/*"
                 - "arn:aws:bedrock:*:*:foundation-model/*" 
-        - S3CrudPolicy: { BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}' }
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -1170,18 +1051,13 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-nosql-producto-${Environment}'
-      Runtime: python3.10
       Handler: guardar_producto_nosql_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 15
-      MemorySize: 128
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
       Policies:
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -1193,17 +1069,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-prev-comunicacion-${Environment}'
-      Runtime: python3.10
       Handler: preventivo_comunicacion_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 60
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -1211,8 +1082,8 @@ Resources:
               Resource:
                 - "arn:aws:bedrock:*:*:inference-profile/*"
                 - "arn:aws:bedrock:*:*:foundation-model/*"
-        - S3CrudPolicy: { BucketName: !Ref VeritasMaterialidadBucket }
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -1224,20 +1095,15 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-prev-evidencia-${Environment}'
-      Runtime: python3.10
       Handler: preventivo_evidencia_handler.handler
       CodeUri: ./lambdas/materialidad/
-      Timeout: 45
-      MemorySize: 256
-      Architectures: 
-        - x86_64
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
-          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Policies:
-        - S3CrudPolicy: { BucketName: !Ref VeritasMaterialidadBucket }
-        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}' }
       Events:
         ApiEvent:
           Type: Api
@@ -1262,28 +1128,6 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
-  # =========================================================================
-  # TABLA NOSQL (Amazon DynamoDB)
-  # =========================================================================
-  VeritasFinanzasNoSqlTable:
-    Type: AWS::Serverless::SimpleTable
-    Properties:
-      TableName: !Sub 'veritas-control-kpis-financieros-${Environment}'
-      PrimaryKey:
-        Name: tenant_id
-        Type: String
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
-
-
-  S3BucketTemporalSAT:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
-# =========================================================================
-# MÁQUINA DE ESTADOS (Disparada en automático por S3)
-# =========================================================================
   VeritasMaterialidadStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:

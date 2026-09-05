@@ -38,6 +38,11 @@ Resources:
             AllowedOrigins: ['http://localhost:5173'] # Tu URL local permitida
             MaxAge: 3000
 
+  S3BucketTemporalSAT:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
+
   ParamMaterialidadBucketName:
     Type: AWS::SSM::Parameter
     Properties:
@@ -53,3 +58,11 @@ Resources:
       Type: String
       Value: !Ref VeritasFacturasS3Bucket
       Description: Nombre real del Bucket de S3 para almacenamiento de facturas SAT.
+
+  ParamTemporalSATBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/storage/temporal-sat-bucket-name'
+      Type: String
+      Value: !Ref S3BucketTemporalSAT
+      Description: Nombre real del Bucket de S3 para almacenamiento temporal de listas negras SAT.

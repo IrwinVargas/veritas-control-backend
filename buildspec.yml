@@ -1,0 +1,56 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Instalando herramientas globales de AWS SAM..."
+      - pip install --upgrade awscli aws-sam-cli
+
+  build:
+    commands:
+      - echo "Iniciando despliegue modular con AWS SAM en entorno ${ENVIRONMENT}..."
+
+      # -------------------------------------------------------------------------
+      # PASO 1: Despliegue de Red con SAM
+      # -------------------------------------------------------------------------
+      - echo "Desplegando módulo de RED..."
+      - sam deploy 
+          --template-file infra/network-infra.yaml 
+          --stack-name veritas-network-${ENVIRONMENT} 
+          --no-confirm-changeset 
+          --no-fail-on-empty-changeset
+          --resolve-s3
+
+      # -------------------------------------------------------------------------
+      # PASO 2: Despliegue de Almacenamiento (S3) con SAM
+      # -------------------------------------------------------------------------
+      - echo "Desplegando módulo de STORAGE..."
+      - sam deploy 
+          --template-file infra/storage-infra.yaml 
+          --stack-name veritas-storage-${ENVIRONMENT} 
+          --no-confirm-changeset 
+          --no-fail-on-empty-changeset 
+          --resolve-s3
+
+      # -------------------------------------------------------------------------
+      # PASO 3: Despliegue de Bases de Datos con SAM (Aquí ya no fallará SimpleTable)
+      # -------------------------------------------------------------------------
+      - echo "Desplegando módulo de DATOS..."
+      - sam deploy 
+          --template-file infra/database-infra.yaml 
+          --stack-name veritas-database-${ENVIRONMENT} 
+          --capabilities CAPABILITY_IAM 
+          --no-confirm-changeset 
+          --no-fail-on-empty-changeset 
+          --resolve-s3
+
+      # -------------------------------------------------------------------------
+      # PASO 4: Compilación y Despliegue del Core Stack (Lambdas en Python y API)
+      # -------------------------------------------------------------------------
+      - echo "Compilando código e infraestructura aislada con AWS SAM..."
+      - sam build --use-container --template-file template.yaml
+
+      - echo "Desplegando núcleo de la aplicación Veritas..."
+      - sam deploy --stack-name veritas-core-lambdas-${ENVIRONMENT} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --no-confirm-changeset --no-fail-on-empty-changeset

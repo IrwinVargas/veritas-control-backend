@@ -50,6 +50,17 @@ Resources:
     Properties:
       TableName: !Sub 'veritas-control-materialidad-status-${Environment}'
       PrimaryKey: { Name: tenant_rfc, Type: String }
+
+  VeritasFinanzasNoSqlTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub 'veritas-control-kpis-financieros-${Environment}'
+      PrimaryKey:
+        Name: tenant_id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
   
   VeritasDbSubnetGroupV2:
     Type: AWS::RDS::DBSubnetGroup
@@ -76,6 +87,14 @@ Resources:
       Name: !Sub '/veritas-control/${Environment}/dynamo/materialidad-table-name'
       Type: String
       Value: !Ref VeritasMaterialidadNoSqlTable
+  
+  ParamVeritasFinanzasNoSqlTable:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/dynamo/finanzas-table-name'
+      Type: String
+      Value: !Ref VeritasFinanzasNoSqlTable
+  
 
   ParamPostgresEndpoint:
     Type: AWS::SSM::Parameter
