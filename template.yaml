@@ -1189,6 +1189,62 @@ Resources:
     Metadata:
       BuildMethod: python3.10
 
+  MaterialidadComunicacionEmpresarialLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-prev-comunicacion-${Environment}'
+      Runtime: python3.10
+      Handler: preventivo_comunicacion_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 60
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["bedrock:InvokeModel"]
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*"
+        - S3CrudPolicy: { BucketName: !Ref VeritasMaterialidadBucket }
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/preventivo/comunicacion, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
+  MaterialidadEvidenciaDigitalLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-prev-evidencia-${Environment}'
+      Runtime: python3.10
+      Handler: preventivo_evidencia_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 45
+      MemorySize: 256
+      Architectures: 
+        - x86_64
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref VeritasMaterialidadNoSqlTable
+          BUCKET_NAME: !Ref VeritasMaterialidadBucket
+      Policies:
+        - S3CrudPolicy: { BucketName: !Ref VeritasMaterialidadBucket }
+        - DynamoDBCrudPolicy: { TableName: !Ref VeritasMaterialidadNoSqlTable }
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties: { Path: /materialidad/preventivo/evidencia, Method: post, RestApiId: !Ref VeritasApi }
+    Metadata:
+      BuildMethod: python3.10
+
   VeritasLambdasSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
