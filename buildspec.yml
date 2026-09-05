@@ -41,7 +41,7 @@ phases:
       - sam deploy 
           --template-file infra/database-infra.yaml 
           --stack-name veritas-database-${ENVIRONMENT} 
-          --capabilities CAPABILITY_IAM 
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND 
           --no-confirm-changeset 
           --no-fail-on-empty-changeset 
           --resolve-s3
