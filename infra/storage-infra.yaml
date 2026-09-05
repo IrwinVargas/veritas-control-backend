@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Módulo de Almacenamiento - S3 Bucket Seguro para Materialidad Veritas'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+    Description: Entorno de despliegue de la infraestructura de storage.
+
+Resources:
+  VeritasMaterialidadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  VeritasFacturasS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'veritas-control-facturas-sat-${Environment}-${AWS::AccountId}'
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['PUT', 'POST']
+            AllowedOrigins: ['http://localhost:5173'] # Tu URL local permitida
+            MaxAge: 3000
+
+  ParamMaterialidadBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/storage/materialidad-bucket-name'
+      Type: String
+      Value: !Ref VeritasMaterialidadBucket
+      Description: Nombre real del Bucket de S3 para almacenamiento de materialidad.
+  
+  ParamFacturasBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/storage/facturas-bucket-name'
+      Type: String
+      Value: !Ref VeritasFacturasS3Bucket
+      Description: Nombre real del Bucket de S3 para almacenamiento de facturas SAT.

@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Serverless: Configuración de Amazon Cognito para SaaS Legal Multi-tenant'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+    Description: Entorno de despliegue de la plataforma legal.
+
+Resources:
+
+  VeritasDbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Permitir acceso a Postgres unicamente desde las Lambdas del SaaS"
+      VpcId: !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/vpc}}'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: "0.0.0.0/0"
+
+  # INSTANCIA DE LECTURA/ESCRITURA DENTRO DEL CLUSTER
+  VeritasPostgresDB:
+    Type: AWS::RDS::DBInstance
+    DependsOn: VeritasDbSecret
+    Properties:
+      DBInstanceIdentifier: !Sub 'veritas-control-db-${Environment}'
+      AllocatedStorage: '20' # 20 GB (Máximo permitido gratis en Free Tier)
+      DBInstanceClass: db.t3.micro # Tipo de instancia 100% gratuita por 12 meses
+      Engine: postgres
+      EngineVersion: '15'
+      DBName: veritas_db
+      MasterUsername: "veritas_admin"
+      ManageMasterUserPassword: true
+      DBSubnetGroupName: !Ref VeritasDbSubnetGroupV2
+      VPCSecurityGroups:
+        - !GetAtt VeritasDbSecurityGroup.Id
+      PubliclyAccessible: true
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+
+  VeritasMaterialidadNoSqlTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub 'veritas-control-materialidad-status-${Environment}'
+      PrimaryKey: { Name: tenant_rfc, Type: String }
+  
+  VeritasDbSubnetGroupV2:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Grupo de subredes integrado para el cluster de Aurora Serverless"
+      SubnetIds:
+        - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+        - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+
+  VeritasDbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'veritas-control/${Environment}/rds/postgres-credentials'
+      Description: "Credenciales maestras para VeritasPostgresDB"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "veritas_admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+
+  ParamDynamoMaterialidad:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/dynamo/materialidad-table-name'
+      Type: String
+      Value: !Ref VeritasMaterialidadNoSqlTable
+
+  ParamPostgresEndpoint:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
+      Type: String
+      Value: !GetAtt VeritasPostgresDB.Endpoint.Address
+  
+  ParamPostgresSecretArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/rds/postgres-secret-arn'
+      Type: String
+      Value: !GetAtt VeritasPostgresDB.MasterUserSecret.SecretArn
+      Description: "ARN del secreto administrado por AWS para VeritasPostgresDB"

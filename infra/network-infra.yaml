@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Serverless: Configuración de Amazon Cognito para SaaS Legal Multi-tenant'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+    Description: Entorno de despliegue de la plataforma legal.
+
+Resources:
+  VeritasVCP:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-Veritas-Control-VPC'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-Veritas-Control-IGW'
+  
+  VeritasVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VeritasVCP
+      InternetGatewayId: !Ref InternetGateway
+
+  VeritasSubnetPrivadaUno:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VeritasVCP
+      CidrBlock: "10.0.1.0/24" 
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "Veritas Control - Subred Privada Aislada 1A"
+
+  VeritasSubnetPrivadaDos:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VeritasVCP
+      CidrBlock: "10.0.2.0/24"
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "Veritas Control - Subred Privada Aislada 1B"
+
+  VeritasTablaRuteoPrivada:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VeritasVCP
+      Tags: [{ Key: Name, Value: "Veritas Control - Tabla de Ruteo Privada" }]
+
+  VeritasPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VeritasVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  VeritasAsociacionRuteoPrivadaUno:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VeritasSubnetPrivadaUno
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+
+  VeritasAsociacionRuteoPrivadaDos:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VeritasSubnetPrivadaDos
+      RouteTableId: !Ref VeritasTablaRuteoPrivada
+
+  VeritasLambdasSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Grupo de seguridad para el computo de las Lambdas de Veritas"
+      VpcId: !Ref VeritasVCP
+
+  VeritasS3VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref VeritasVCP
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref VeritasTablaRuteoPrivada
+
+  ParamSecurityGroup:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/network/lambdas-sg-id'
+      Type: String
+      Value: !Ref VeritasLambdasSecurityGroup
+
+  ParamVPC:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/network/vpc'
+      Type: String
+      Value: !Ref VeritasVCP
+
+  ParamSubnetUno:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/network/subnet-privada-1'
+      Type: String
+      Value: !Ref VeritasSubnetPrivadaUno
+
+  ParamSubnetDos:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/network/subnet-privada-2'
+      Type: String
+      Value: !Ref VeritasSubnetPrivadaDos

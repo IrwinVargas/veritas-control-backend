@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Serverless: Configuración de Amazon Cognito para SaaS Legal Multi-tenant'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+    Description: Entorno de despliegue de la plataforma legal.
+  GitHubRepo:
+    Type: String
+    Default: "https://github.com/IrwinVargas/veritas-control-backend.git"
+  GitHubOwner:
+    Type: String
+    Default: "IrwinVargas"
+  GitHubBranch:
+    Type: String
+    Default: "dev"
+
+Resources:
+
+  VeritasGitHubConnection:
+    Type: AWS::CodeStarConnections::Connection
+    Properties:
+      ConnectionName: !Sub 'veritas-github-connection-${Environment}'
+      ProviderType: GitHub
+
+  # =========================================================================
+  # 1. ALMACENAMIENTO TEMPORAL DE ARTEFACTOS (S3)
+  # =========================================================================
+  VeritasPipelineArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'veritas-pipeline-artifacts-${Environment}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  VeritasBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub 'veritas-build-project-${Environment}'
+      Description: 'Contenedor encargado de compilar y desplegar SAM secuencialmente'
+      ServiceRole: !GetAtt CodeBuildExecutionRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml 
+      TimeoutInMinutes: 15
+
+  # =========================================================================
+  # 4. ORQUESTADOR DE ETAPAS (CODEPIPELINE CON ACCIÓN CODESTAR)
+  # =========================================================================
+  VeritasPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub 'veritas-platform-pipeline-${Environment}'
+      RoleArn: !GetAtt PipelineExecutionRole.Arn
+      PipelineType: V2
+      Triggers:
+        - ProviderType: CodeStarSourceConnection
+          GitConfiguration:
+            SourceActionName: SourceAction # Debe coincidir exactamente con el Name de abajo
+            Push:
+              - Branches:
+                  Includes:
+                    - !Ref GitHubBranch
+
+      ArtifactStore:
+        Type: S3
+        Location: !Ref VeritasPipelineArtifactBucket
+      Stages:
+        # ETAPA 1: Clonación Nativa limpia mediante CodeStar
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection # <--- Cambiado al proveedor V2 moderno
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceCode
+              Configuration:
+                ConnectionArn: "arn:aws:codeconnections:us-east-1:049255850526:connection/cfcbdf00-3cdb-4e0a-b50f-0e2f1a75fa39" # <--- Enlace dinámico automático
+                FullRepositoryId: !Sub "${GitHubOwner}/${GitHubRepo}"
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: "CODE_ZIP" # Mantiene el empaquetado plano óptimo para CodeBuild
+                DetectChanges: "true"
+
+        # ETAPA 2: Disparar CodeBuild
+        - Name: DeployEcosystem
+          Actions:
+            - Name: DeployAllStacksAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceCode
+              Configuration:
+                ProjectName: !Ref VeritasBuildProject
+
+  # =========================================================================
+  # 5. ROLES DE SEGURIDAD (IAM ROLES CON ACCESOS PARA CODESTAR)
+  # =========================================================================
+  
+  PipelineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "codepipeline.amazonaws.com" # <--- Sintaxis limpia con comillas dobles
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: VeritasPipelineCodeStarAndBuildAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                Resource: !GetAtt VeritasBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - "codestar-connections:UseConnection"
+                  - "codeconnections:UseConnection"
+                Resource: "arn:aws:codeconnections:us-east-1:049255850526:connection/cfcbdf00-3cdb-4e0a-b50f-0e2f1a75fa39"
+
+  CodeBuildExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "codebuild.amazonaws.com" # <--- Corregido de forma estricta para evitar el error de parseo
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
