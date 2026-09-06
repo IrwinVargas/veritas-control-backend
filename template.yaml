@@ -723,7 +723,7 @@ Resources:
               Resource:
                 Fn::Join:
                   - ""
-                  - - !Sub "{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}"
+                  - - !Sub "{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-arn}}"
                     - "/*"
       Events:
         ApiEvent:

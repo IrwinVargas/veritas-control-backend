@@ -53,3 +53,11 @@ Resources:
       Type: String
       Value: !Ref VeritasFacturasS3Bucket
       Description: Nombre real del Bucket de S3 para almacenamiento de facturas SAT.
+
+  ParamFacturasBucketArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/storage/facturas-bucket-arn'
+      Type: String
+      Value: !GetAtt VeritasFacturasS3Bucket.Arn
+      Description: ARN del Bucket de S3 para almacenamiento de facturas SAT.
