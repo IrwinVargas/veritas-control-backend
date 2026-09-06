@@ -37,6 +37,8 @@ phases:
       # -------------------------------------------------------------------------
       # PASO 3: Despliegue de Bases de Datos con SAM (Aquí ya no fallará SimpleTable)
       # -------------------------------------------------------------------------
+      - echo "Compilando código e infraestructura aislada con AWS SAM..."
+      - sam build --template-file infra/database-infra.yaml
       - echo "Desplegando módulo de DATOS..."
       - sam deploy 
           --template-file infra/database-infra.yaml 
