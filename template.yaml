@@ -927,11 +927,11 @@ Resources:
       CodeUri: ./lambdas/archivo_lista_negra_sat/
       Policies:
         - S3CrudPolicy:
-            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
+            BucketName: !Ref S3BucketTemporalSAT
       Environment:
         Variables:
           URL_CSV_SAT: "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Listado_completo_69-B.csv"
-          BUCKET_DESTINO: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
+          BUCKET_DESTINO: !Ref S3BucketTemporalSAT
       Events:
         CronDiarioSAT:
           Type: Schedule
@@ -955,12 +955,12 @@ Resources:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Policies:
         - S3ReadPolicy:
-            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
+            BucketName: !Ref S3BucketTemporalSAT
       Events:
         TriggerArchivoSAT:
           Type: S3
           Properties:
-            Bucket: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/temporal-sat-bucket-name}}'
+            Bucket: !Ref S3BucketTemporalSAT
             Events: s3:ObjectCreated:*
             Filter:
               S3Key:
@@ -1225,4 +1225,9 @@ Resources:
               detail:
                 bucket:
                   name: [ !Ref VeritasFacturasS3Bucket ]
+
+  S3BucketTemporalSAT:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
 
