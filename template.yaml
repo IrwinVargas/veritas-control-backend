@@ -720,7 +720,11 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: [ "s3:PutObject" ]
-              Resource: !Sub '${resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}/*'
+              Resource:
+                Fn::Join:
+                  - ""
+                  - - !Sub "{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}"
+                    - "/*"
       Events:
         ApiEvent:
           Type: Api
