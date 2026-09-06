@@ -1224,7 +1224,7 @@ Resources:
               detail-type: ["Object Created"]
               detail:
                 bucket:
-                  name: [ !Ref VeritasFacturasS3Bucket ]
+                  name: [ !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}' ]
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket
