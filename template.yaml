@@ -1355,7 +1355,7 @@ Resources:
               Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:veritas-control-mat-worker-${Environment}'
             - Effect: Allow
               Action: ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
-              Resource: !Sub '{{resolve:ssm:veritas-control-database-infra-${Environment}-MaterialidadTableArn}}'
+              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
         - AWSLambdaVPCAccessExecutionRole 
 
   VeritasMaterialidadQueue:
@@ -1381,7 +1381,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-              Resource: !Sub '{{resolve:ssm:veritas-control-database-infra-${Environment}-MaterialidadTableArn}}'
+              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
     Metadata:
       BuildMethod: python3.11
 
@@ -1415,7 +1415,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
-              Resource: !Sub '{{resolve:ssm:veritas-control-database-infra-${Environment}-MaterialidadTableArn}}'
+              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
     Metadata:
       BuildMethod: python3.11
 
