@@ -1,4 +1,3 @@
-# lambdas/materialidad/crear_cliente_manual_handler.py
 import os
 import json
 import uuid
