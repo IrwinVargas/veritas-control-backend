@@ -1419,7 +1419,8 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
