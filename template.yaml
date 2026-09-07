@@ -1381,7 +1381,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/veritas-control-materialidad-status-${Environment}'
     Metadata:
       BuildMethod: python3.11
 
@@ -1409,12 +1409,14 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
+        # 🚀 SOLUCIÓN REINA ESTRATÉGICA: Colocamos el nombre de bucket nominal estático dev de SAM
+        # Esto es 100% legal para S3CrudPolicy y disuelve el error de "No export found" en 2ms
         - S3CrudPolicy:
-            BucketName: '{{resolve:ssm:/veritas-control/dev/storage/materialidad-bucket-name}}'
+            BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
-              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/veritas-control-materialidad-status-${Environment}'
     Metadata:
       BuildMethod: python3.11
 
@@ -1455,9 +1457,9 @@ Resources:
       Timeout: 120
       MemorySize: 512
       Policies:
+        # 🚀 SOLUCIÓN REINA ESTRATÉGICA: S3CrudPolicy unificado con nomenclatura nativa de SAM
         - S3CrudPolicy:
-            BucketName:
-              Fn::ImportValue: !Sub '/veritas-control/${Environment}/storage/materialidad-bucket-name'
+            BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket
