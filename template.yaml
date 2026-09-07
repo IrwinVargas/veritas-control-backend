@@ -20,7 +20,7 @@ Globals:
     Environment:
       Variables:
         DYNAMODB_TABLE: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
-        BUCKET_NAME: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}'
+        BUCKET_NAME: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
         DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
         DB_PORT: "5432"
         DB_USER: "veritas_admin"
@@ -1219,6 +1219,26 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  
+  VeritasStepFunctionsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'veritas-control-stepfunctions-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [states.amazonaws.com] 
+            Action: ["sts:AssumeRole"]
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["lambda:InvokeFunction"]
+              Resource:
+                - !GetAtt MaterialidadExtractorPostgresLambda.Arn
+                - !GetAtt MaterialidadRedactorBedrockLambda.Arn
+                - !GetAtt MaterialidadEscultorReportLabLambda.Arn
 
   VeritasMaterialidadStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -1407,7 +1427,7 @@ Resources:
     Type: AWS::StepFunctions::StateMachine
     Properties:
       StateMachineName: !Sub 'veritas-materialidad-pipeline-${Environment}'
-      RoleArn: '{{resolve:ssm:/veritas/iam/step-functions-role-arn}}'
+      RoleArn: !GetAtt VeritasStepFunctionsExecutionRole.Arn
       DefinitionString: !Sub |
         {
           "Comment": "Pipeline Forense de Materialidad - Veritas Control",
