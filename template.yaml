@@ -19,7 +19,7 @@ Globals:
       - x86_64
     Environment:
       Variables:
-        DYNAMODB_TABLE: '{{resolve:ssm:/veritas/database/dynamo-table-name}}'
+        DYNAMODB_TABLE: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
         BUCKET_NAME: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}'
         DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
         DB_PORT: "5432"
@@ -1358,11 +1358,11 @@ Resources:
       Handler: step1_extractor_handler.handler
       CodeUri: ./lambdas/materialidad/
       VpcConfig:
-        SecurityGroupIds: 
-          - '{{resolve:ssm:/veritas/network/lambda-security-group-id}}'
+        SecurityGroupIds:
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/lambdas-sg-id}}'
         SubnetIds:
-          - '{{resolve:ssm:/veritas/network/private-subnet-a}}'
-          - '{{resolve:ssm:/veritas/network/private-subnet-b}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
+          - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
@@ -1395,11 +1395,11 @@ Resources:
       Handler: step3_escultor_handler.handler
       CodeUri: ./lambdas/materialidad/
       Policies:
-        - S3CrudPolicy: { BucketName: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}' }
+        - S3CrudPolicy: { BucketName: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
-              Resource: '{{resolve:ssm:/veritas/database/dynamo-table-arn}}'
+              Resource: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
     Metadata:
       BuildMethod: python3.11
 
