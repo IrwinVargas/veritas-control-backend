@@ -19,6 +19,8 @@ Globals:
       - x86_64
     Environment:
       Variables:
+        DYNAMODB_TABLE: '{{resolve:ssm:/veritas/database/dynamo-table-name}}'
+        BUCKET_NAME: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}'
         DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
         DB_PORT: "5432"
         DB_USER: "veritas_admin"
@@ -565,6 +567,92 @@ Resources:
                 type: "aws_proxy"
                 httpMethod: "POST"
                 uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadPreventivoBimestralLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /materialidad/core/orquestar:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadOrquestadorLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+                
+          /materialidad/core/empaquetar-zip:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadEmpaquetarZipLambda.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '201': { description: "Cliente creado." }
@@ -1229,6 +1317,140 @@ Resources:
               detail:
                 bucket:
                   name: [ !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}' ]
+  MaterialidadOrquestadorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-orquestador-${Environment}'
+      Runtime: python3.10
+      Handler: orquestador_materialidad.handler
+      CodeUri: ../lambdas/materialidad/
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}'
+          WORKER_LAMBDA_NAME: !Sub 'veritas-control-mat-worker-${Environment}'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["lambda:InvokeFunction"]
+              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:veritas-control-mat-worker-${Environment}'
+        - DynamoDBCrudPolicy: { TableName: !Ref CertezaMaterialidadNoSqlTable }
+        - AWSLambdaVPCAccessExecutionRole 
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /materialidad/core/orquestar
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  VeritasMaterialidadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'veritas-control-mat-queue-${Environment}'
+      VisibilityTimeout: 300
+
+  MaterialidadExtractorPostgresLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-step1-extractor-${Environment}'
+      Handler: step1_extractor_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      VpcConfig:
+        SecurityGroupIds: 
+          - '{{resolve:ssm:/veritas/network/lambda-security-group-id}}'
+        SubnetIds:
+          - '{{resolve:ssm:/veritas/network/private-subnet-a}}'
+          - '{{resolve:ssm:/veritas/network/private-subnet-b}}'
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+              Resource: '{{resolve:ssm:/veritas/database/dynamo-table-arn}}'
+    Metadata:
+      BuildMethod: python3.11
+
+  MaterialidadRedactorBedrockLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-step2-redactor-${Environment}'
+      Handler: step2_redactor_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: ["bedrock:InvokeModel"]
+              Resource:
+                - "arn:aws:bedrock:*:*:inference-profile/*"
+                - "arn:aws:bedrock:*:*:foundation-model/*"
+    Metadata:
+      BuildMethod: python3.11
+
+  MaterialidadEscultorReportLabLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-step3-escultor-${Environment}'
+      Handler: step3_escultor_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Policies:
+        - S3CrudPolicy: { BucketName: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}' }
+        - Statement:
+            - Effect: Allow
+              Action: ["dynamodb:UpdateItem"]
+              Resource: '{{resolve:ssm:/veritas/database/dynamo-table-arn}}'
+    Metadata:
+      BuildMethod: python3.11
+
+  VeritasMaterialidadStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub 'veritas-materialidad-pipeline-${Environment}'
+      RoleArn: '{{resolve:ssm:/veritas/iam/step-functions-role-arn}}'
+      DefinitionString: !Sub |
+        {
+          "Comment": "Pipeline Forense de Materialidad - Veritas Control",
+          "StartAt": "ExtraerDatos",
+          "States": {
+            "ExtraerDatos": {
+              "Type": "Task",
+              "Resource": "${MaterialidadExtractorPostgresLambda.Arn}",
+              "Next": "GenerarTextoIA"
+            },
+            "GenerarTextoIA": {
+              "Type": "Task",
+              "Resource": "${MaterialidadRedactorBedrockLambda.Arn}",
+              "Next": "EsculpirPDF"
+            },
+            "EsculpirPDF": {
+              "Type": "Task",
+              "Resource": "${MaterialidadEscultorReportLabLambda.Arn}",
+              "End": true
+            }
+          }
+        }
+
+  MaterialidadS3ZipPackerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-mat-core-zip-packer-${Environment}'
+      Handler: core_zip_packer_handler.handler
+      CodeUri: ./lambdas/materialidad/
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - S3CrudPolicy:
+            BucketName: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /materialidad/core/empaquetar-zip
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.11
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket
