@@ -1227,16 +1227,22 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [states.amazonaws.com] 
-            Action: ["sts:AssumeRole"]
+              Service: 
+                - states.amazonaws.com
+            Action: 
+              - "sts:AssumeRole"
       Policies:
-        - Statement:
-            - Effect: Allow
-              Action: ["lambda:InvokeFunction"]
-              Resource:
-                - !GetAtt MaterialidadExtractorPostgresLambda.Arn
-                - !GetAtt MaterialidadRedactorBedrockLambda.Arn
-                - !GetAtt MaterialidadEscultorReportLabLambda.Arn
+        - PolicyName: !Sub 'veritas-control-stepfunctions-policy-${Environment}'
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt MaterialidadExtractorPostgresLambda.Arn
+                  - !GetAtt MaterialidadRedactorBedrockLambda.Arn
+                  - !GetAtt MaterialidadEscultorReportLabLambda.Arn
 
   VeritasMaterialidadStateMachine:
     Type: AWS::Serverless::StateMachine
