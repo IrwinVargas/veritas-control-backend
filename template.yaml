@@ -1333,7 +1333,7 @@ Resources:
             - Effect: Allow
               Action: ["lambda:InvokeFunction"]
               Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:veritas-control-mat-worker-${Environment}'
-        - DynamoDBCrudPolicy: { TableName: !Ref CertezaMaterialidadNoSqlTable }
+        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}' }
         - AWSLambdaVPCAccessExecutionRole 
       Events:
         ApiEvent:
