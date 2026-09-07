@@ -19,8 +19,6 @@ Globals:
       - x86_64
     Environment:
       Variables:
-        DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
-        BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
         DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
         DB_PORT: "5432"
         DB_USER: "veritas_admin"
@@ -1347,6 +1345,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}'
+          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}'
           WORKER_LAMBDA_NAME: !Sub 'veritas-control-mat-worker-${Environment}'
       Policies:
         - Statement:
