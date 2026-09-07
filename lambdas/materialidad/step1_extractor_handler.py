@@ -3,67 +3,81 @@ import json
 import boto3
 import pg8000
 
-ssm_client = boto3.client('ssm')
+# Inicializamos el búnker NoSQL interno de forma segura dentro de la VPC
 dynamodb = boto3.resource('dynamodb')
+_db_connection_step1 = None
 
-_CACHED_DB_HOST = None
+def obtener_conexion_postgres_step1():
+    """
+    [ENFOQUE LOCAL PURO] Abre el socket TCP relacional en microsegundos fijos 
+    leyendo directamente las variables que tú ya resolviste desde el template.yml.
+    """
+    global _db_connection_step1
+    if _db_connection_step1 and not _db_connection_step1.is_closed:
+        return _db_connection_step1
+
+    # 🚀 SUCCIÓN CRUDA SUPREMA: Jalamos exactamente tus variables de entorno limpias
+    host_real   = os.environ.get('DB_HOST')
+    db_name     = os.environ.get('DB_NAME')
+    db_user     = os.environ.get('DB_USER')
+    db_port_str = os.environ.get('DB_PORT')
+    db_password = os.environ.get('DB_PASSWORD')
+
+    print(f"🔌 [Paso 1] Estableciendo socket TCP interno de la VPC: {host_real}:{db_port_str}")
+    _db_connection_step1 = pg8000.connect(
+        host=host_real,
+        port=int(db_port_str),
+        user=db_user,
+        database=db_name,
+        password=db_password,
+        timeout=5
+    )
+    return _db_connection_step1
 
 def handler(event, context):
-    global _CACHED_DB_HOST
-    print("📡 Paso 1 Activo: Extrayendo transacciones relacionales del SAT dentro de la VPC...")
+    print("📡 Paso 1 Activo: Extrayendo transacciones del SAT bajo el Enfoque Modular Puro...")
     
-    # Capturamos el ticket de la cola SQS
     tenant_id = event.get('tenant_id')
     rfc_cliente = event.get('rfc_cliente')
     ano_fiscal = event.get('ano_fiscal', '2026')
     contrato = event.get('contrato')
     tipo_flujo = event.get('tipo_flujo', 'PREVENTIVO')
 
-    # Actualizamos progreso inicial NoSQL a 25%
+    # Succionamos el nombre de la tabla NoSQL inyectado localmente
+    nombre_tabla_nosql = os.environ.get('DYNAMODB_TABLE')
+    table = dynamodb.Table(nombre_tabla_nosql)
     hash_key = f"{tenant_id}#{rfc_cliente}#{contrato}#{ano_fiscal}"
-    table = dynamodb.Table(os.environ.get('DYNAMODB_TABLE'))
+
+    # 📊 UX SYNCHRONIZER: Dejamos pre-firmado el progreso en la Main Table de DynamoDB
     table.update_item(
         Key={'tenant_rfc_year_contract': hash_key},
         UpdateExpression="SET progreso_porcentaje = :p, mensaje_progreso = :m, estatus_global = :e",
         ExpressionAttributeValues={
             ':p': 25, 
-            ':m': "Extrayendo transacciones y CFDIs oficiales del SAT...",
+            ':m': "Extrayendo transacciones relacionales y CFDIs oficiales desde PostgreSQL...",
             ':e': 'PROCESANDO'
         }
     )
 
-    string_catalogo_ia = ""
-    catalogo_json_payload = []
-
-    if tipo_flujo == 'RECONSTRUCTIVO':
-        if not _CACHED_DB_HOST:
-            _CACHED_DB_HOST = ssm_client.get_parameter(Name=os.environ.get('DB_HOST_PARAM'), WithDecryption=False)['Parameter']['Value'].strip()
+    event['string_catalogo_ia'] = "Catálogo de soluciones por contrato preventivo."
+    
+    if tipo_flujo == "RECONSTRUCTIVO":
+        print(f"🕵️ Flujo Reconstructivo activado. Extrayendo CFDIs históricos para RFC: {rfc_cliente}")
         
-        conn = pg8000.connect(host=_CACHED_DB_HOST, database=os.environ.get('DB_NAME'), user=os.environ.get('DB_USER'), port=int(os.environ.get('DB_PORT', 5432)))
+        # Se conecta de forma supersónica sin requerir internet ni brincos de SSM por red
+        conn = obtener_conexion_postgres_step1()
         cursor = conn.cursor()
-        query = "SELECT descripcion, sub_total FROM facturas_sat WHERE tenant_id = %s AND rfc_receptor = %s LIMIT 15;"
-        cursor.execute(query, (tenant_id, rfc_cliente))
         
-        for desc, sub in cursor.fetchall():
-            string_catalogo_ia += f"- {desc} (${float(sub):,.2f} MXN)\n"
-            catalogo_json_payload.append({"desc": str(desc), "precio": float(sub)})
+        query = "SELECT descripcion FROM facturas_sat WHERE tenant_id = %s AND rfc_receptor = %s;"
+        cursor.execute(query, (tenant_id, rfc_cliente))
+        rows = cursor.fetchall()
+        
+        # Consolidamos los conceptos de las facturas en un solo string masivo para Claude 4.5
+        conceptos_unicos = list(set([str(r[0]).strip() for r in rows if r[0]]))
+        event['string_catalogo_ia'] = " | ".join(conceptos_unicos)[:5000] # Cap de cortesía
+        
         cursor.close()
-        conn.close()
-    else:
-        # Preventivo: Succiona de DynamoDB
-        expediente = table.get_item(Key={'tenant_rfc_year_contract': hash_key}).get('Item', {})
-        for prod in expediente.get('catalogo_benchmarking', []):
-            amp = prod.get('amplitud_linea', 'Solución')
-            prof = prod.get('profundidad_presentacion', 'U.M.')
-            prec = float(prod.get('precio_lista', 0.00))
-            string_catalogo_ia += f"- {amp} {prof} (${prec:,.2f})\n"
-            catalogo_json_payload.append({"desc": f"{amp} {prof}", "precio": prec, "key_foto": prod.get('key_imagen_s3', '')})
+        print(f"✅ Extracción relacional completada: {len(rows)} renglones succionados y purificados.")
 
-    if not catalogo_json_payload:
-        string_catalogo_ia = "- Planificación de Estructuras Generales de Compliance.\n"
-        catalogo_json_payload.append({"desc": "Planificación Estratégica Preliminar", "precio": 0.00})
-
-    # Pasamos de forma limpia el payload unificado al paso 2 de la Step Function
-    event['string_catalogo_ia'] = string_catalogo_ia
-    event['catalogo_json_payload'] = catalogo_json_payload
+    # Avanza de forma asíncrona hacia el Paso 2 (Claude 4.5 Haiku en Bedrock)
     return event

@@ -17,13 +17,6 @@ Globals:
     Runtime: python3.11
     Architectures:
       - x86_64
-    Environment:
-      Variables:
-        DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
-        DB_PORT: "5432"
-        DB_USER: "veritas_admin"
-        DB_NAME: "veritas_db"
-        SECRET_ARN_PARAM_PATH: !Sub '/veritas-control/${Environment}/rds/postgres-secret-arn'
 
 Resources:
   # API GATEWAY CENTRAL CON SWAGGER INTEGRADO
@@ -700,6 +693,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -722,6 +722,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Events:
         ApiEvent:
           Type: Api
@@ -999,6 +1006,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Events:
         ApiEvent:
           Type: Api
@@ -1043,6 +1057,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref S3BucketTemporalSAT
@@ -1073,6 +1094,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Architectures: 
         - x86_64
       Events:
@@ -1385,6 +1413,13 @@ Resources:
         SubnetIds:
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-1}}'
           - !Sub '{{resolve:ssm:/veritas-control/${Environment}/network/subnet-privada-2}}'
+      Environment:
+        Variables:
+          DB_HOST: !Sub '{{resolve:ssm:/veritas-control/${Environment}/rds/postgres-endpoint}}'
+          DB_PORT: '5432'
+          DB_NAME: 'veritas_db'
+          DB_USER: 'veritas_admin'
+          DB_PASSWORD: !Sub '{{resolve:ssm-secure:/veritas-control/${Environment}/rds/postgres-secret-arn}}'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
         - Statement:
