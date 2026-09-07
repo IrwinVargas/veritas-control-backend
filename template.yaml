@@ -1347,16 +1347,25 @@ Resources:
         Variables:
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
           BUCKET_NAME: '{{resolve:ssm:/veritas-control/dev/storage/materialidad-bucket-name}}'
-          WORKER_LAMBDA_NAME: !Sub 'veritas-control-mat-worker-${Environment}'
+          # 🚀 ENRIQUECEMOS EL ENTORNO: Pasamos el ARN de la Step Function que va a despertar
+          STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
       Policies:
         - Statement:
+            # 🎯 REPARACIÓN REINA: Reemplazamos la mala práctica de invocación directa
+            # por el disparador asíncronio oficial de la Máquina de Estados de Veritas
             - Effect: Allow
-              Action: ["lambda:InvokeFunction"]
-              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:veritas-control-mat-worker-${Environment}'
+              Action: ["states:StartExecution"]
+              Resource: !Ref VeritasMaterialidadStateMachine
+            
+            # Formato de ARN completo reglamentario exigido por las aduanas de AWS IAM
             - Effect: Allow
-              Action: ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
-              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
-        - AWSLambdaVPCAccessExecutionRole 
+              Action: 
+                - "dynamodb:PutItem"
+                - "dynamodb:UpdateItem"
+                - "dynamodb:GetItem"
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/veritas-control-materialidad-status-${Environment}'
+              
+        - AWSLambdaVPCAccessExecutionRole
 
   VeritasMaterialidadQueue:
     Type: AWS::SQS::Queue
