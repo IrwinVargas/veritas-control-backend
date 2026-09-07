@@ -1210,7 +1210,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [://amazonaws.com]
+              Service: [lambda.amazonaws.com]
             Action: ["sts:AssumeRole"]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1227,7 +1227,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [://amazonaws.com] 
+              Service: [lambda.amazonaws.com] 
             Action: ["sts:AssumeRole"]
       Policies:
         - Statement:
@@ -1462,4 +1462,3 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
-      
