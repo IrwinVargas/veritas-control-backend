@@ -702,7 +702,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - Statement:
@@ -732,7 +732,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
       Events:
         ApiEvent:
           Type: Api
@@ -1016,7 +1016,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
       Events:
         ApiEvent:
           Type: Api
@@ -1067,7 +1067,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref S3BucketTemporalSAT
@@ -1104,7 +1104,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
       Architectures: 
         - x86_64
       Events:
@@ -1423,7 +1423,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:veritas-control/${Environment}/rds/postgres-secret-arn:SecretString:password}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
