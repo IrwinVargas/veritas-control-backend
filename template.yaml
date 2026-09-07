@@ -643,7 +643,7 @@ Resources:
                     responseTemplates:
                       application/json: ""
                 passthroughBehavior: "when_no_match"
-                
+
           /materialidad/core/empaquetar-zip:
             post:
               summary: "Crear cliente de manera manual"
