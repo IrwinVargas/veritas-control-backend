@@ -652,7 +652,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: "aws_proxy"
                 httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadEmpaquetarZipLambda.Arn}/invocations'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadS3ZipPackerLambda.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '201': { description: "Cliente creado." }
