@@ -94,6 +94,15 @@ Resources:
       VpcEndpointType: Gateway
       RouteTableIds:
         - !Ref VeritasTablaRuteoPrivada
+        
+  VeritasDynamoDbGatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VeritasVCP
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.dynamodb'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref VeritasTablaRuteoPrivada
 
   ParamSecurityGroup:
     Type: AWS::SSM::Parameter
