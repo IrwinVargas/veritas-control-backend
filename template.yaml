@@ -1210,7 +1210,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [lambda.amazonaws.com]
+              Service: [://amazonaws.com]
             Action: ["sts:AssumeRole"]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -1227,7 +1227,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [states.amazonaws.com] 
+              Service: [://amazonaws.com] 
             Action: ["sts:AssumeRole"]
       Policies:
         - Statement:
@@ -1250,35 +1250,30 @@ Resources:
             Type: Parallel
             Next: ConsolidarExpedienteFinal
             Branches:
-              # Rama 1: Contratos
               - StartAt: GenerarFaseContrato
                 States:
                   GenerarFaseContrato:
                     Type: Task
                     Resource: !GetAtt MaterialidadContratoLambda.Arn
                     End: true
-              # Rama 2: Planeación y Benchmarking
               - StartAt: GenerarFasePlaneacion
                 States:
                   GenerarFasePlaneacion:
                     Type: Task
                     Resource: !GetAtt MaterialidadPlaneacionLambda.Arn
                     End: true
-              # Rama 3: Comunicación Empresarial
               - StartAt: GenerarFaseComunicacion
                 States:
                   GenerarFaseComunicacion:
                     Type: Task
                     Resource: !GetAtt MaterialidadComunicacionLambda.Arn
                     End: true
-              # Rama 4: Evidencias Digitales y Facturas
               - StartAt: GenerarFaseEvidenciaFacturas
                 States:
                   GenerarFaseEvidenciaFacturas:
                     Type: Task
                     Resource: !GetAtt MaterialidadEvidenciaLambda.Arn
                     End: true
-
           ConsolidarExpedienteFinal:
             Type: Task
             Resource: !GetAtt MaterialidadConsolidadorLambda.Arn
@@ -1323,7 +1318,6 @@ Resources:
         - LambdaInvokePolicy: { FunctionName: !Ref ParserS3Lambda }
         - LambdaInvokePolicy: { FunctionName: !Ref CargaExcelLambda }
         - LambdaInvokePolicy: { FunctionName: !Ref CalcularKpisNoSqlLambda }
-      # 🚀 DISPARADOR AUTOMÁTICO DE EVENTOS (EventBridge Rule)
       Events:
         FacturaSubidaS3Event:
           Type: EventBridgeRule
@@ -1335,34 +1329,30 @@ Resources:
               detail:
                 bucket:
                   name: [ !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/facturas-bucket-name}}' ]
+
   MaterialidadOrquestadorLambda:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'veritas-control-mat-orquestador-${Environment}'
       Runtime: python3.10
       Handler: orquestador_materialidad.handler
-      CodeUri: ../lambdas/materialidad/
+      CodeUri: ./lambdas/materialidad/
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}'
-          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}'
+          DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
+          BUCKET_NAME:
+            Fn::ImportValue: !Sub 'veritas-control-storage-infra-${Environment}-MaterialidadBucketName'
           WORKER_LAMBDA_NAME: !Sub 'veritas-control-mat-worker-${Environment}'
       Policies:
         - Statement:
             - Effect: Allow
               Action: ["lambda:InvokeFunction"]
               Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:veritas-control-mat-worker-${Environment}'
-        - DynamoDBCrudPolicy: { TableName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}' }
+            - Effect: Allow
+              Action: ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
+              Resource:
+                Fn::ImportValue: !Sub 'veritas-control-database-infra-${Environment}-MaterialidadTableArn'
         - AWSLambdaVPCAccessExecutionRole 
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /materialidad/core/orquestar
-            Method: post
-            RestApiId: !Ref VeritasApi
-    Metadata:
-      BuildMethod: python3.10
 
   VeritasMaterialidadQueue:
     Type: AWS::SQS::Queue
@@ -1387,7 +1377,8 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+              Resource:
+                Fn::ImportValue: !Sub 'veritas-control-database-infra-${Environment}-MaterialidadTableArn'
     Metadata:
       BuildMethod: python3.11
 
@@ -1401,9 +1392,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["bedrock:InvokeModel"]
-              Resource:
-                - "arn:aws:bedrock:*:*:inference-profile/*"
-                - "arn:aws:bedrock:*:*:foundation-model/*"
+              Resource: ["arn:aws:bedrock:*:*:inference-profile/*", "arn:aws:bedrock:*:*:foundation-model/*"]
     Metadata:
       BuildMethod: python3.11
 
@@ -1413,12 +1402,18 @@ Resources:
       FunctionName: !Sub 'veritas-control-mat-step3-escultor-${Environment}'
       Handler: step3_escultor_handler.handler
       CodeUri: ./lambdas/materialidad/
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
-        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - S3CrudPolicy:
+            BucketName:
+              Fn::ImportValue: !Sub 'veritas-control-storage-infra-${Environment}-MaterialidadBucketName'
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
-              Resource: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+              Resource:
+                Fn::ImportValue: !Sub 'veritas-control-database-infra-${Environment}-MaterialidadTableArn'
     Metadata:
       BuildMethod: python3.11
 
@@ -1460,19 +1455,11 @@ Resources:
       MemorySize: 512
       Policies:
         - S3CrudPolicy:
-            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /materialidad/core/empaquetar-zip
-            Method: post
-            RestApiId: !Ref VeritasApi
-    Metadata:
-      BuildMethod: python3.11
+            BucketName:
+              Fn::ImportValue: !Sub 'veritas-control-storage-infra-${Environment}-MaterialidadBucketName'
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "veritas-sat-listas-negras-temporal-${AWS::AccountId}"
-
+      
