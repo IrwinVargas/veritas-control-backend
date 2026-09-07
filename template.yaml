@@ -1368,7 +1368,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-              Resource: '{{resolve:ssm:/veritas/database/dynamo-table-arn}}'
+              Resource: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
     Metadata:
       BuildMethod: python3.11
 
@@ -1441,7 +1441,7 @@ Resources:
       MemorySize: 512
       Policies:
         - S3CrudPolicy:
-            BucketName: '{{resolve:ssm:/veritas/storage/s3-bucket-name}}'
+            BucketName: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Events:
         ApiEvent:
           Type: Api
