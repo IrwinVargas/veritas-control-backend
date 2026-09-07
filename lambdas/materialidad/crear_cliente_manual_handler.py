@@ -2,25 +2,28 @@ import os
 import json
 import uuid
 import boto3
-import pg8000
+import pg8000.dbapi
 from datetime import datetime
 
-ssm_client = boto3.client('ssm')
 dynamodb = boto3.resource('dynamodb')
-_CACHED_DB_HOST = None
+_db_connection = None
 
-def resolver_endpoint_rds_dinamico():
-    global _CACHED_DB_HOST
-    if _CACHED_DB_HOST:
-        return _CACHED_DB_HOST
-    param_path_host = os.environ.get('DB_HOST_PARAM')
-    try:
-        response = ssm_client.get_parameter(Name=param_path_host, WithDecryption=False)
-        _CACHED_DB_HOST = response['Parameter']['Value'].strip()
-        return _CACHED_DB_HOST
-    except Exception as e:
-        print(f"❌ Error crítico resolviendo el host en el Parameter Store: {str(e)}")
-        raise e
+def obtener_conexion_db():
+    global _db_connection
+    print(_db_connection)
+    if _db_connection and not _db_connection.is_closed: 
+        return _db_connection
+        
+    _db_connection = pg8000.dbapi.connect(
+        host=os.environ.get('DB_HOST'),
+        database=os.environ.get('DB_NAME'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD'),
+        port=int(os.environ.get('DB_PORT', 5432)),
+        timeout=5 # Timeout de socket en segundos
+    )
+    
+    return _db_connection
 
 def handler(event, context):
     headers = {
@@ -83,19 +86,8 @@ def handler(event, context):
                 'archivos': {}
             }
         )
-
-        # =========================================================================
-        # 🚀 REPARACIÓN COMPUERTA 2: MATRIZ DE COMPATIBILIDAD RELACIONAL (POSTGRES)
-        # Satisface el catálogo de facturación core para que figure en el Sidebar
-        # =========================================================================
-        db_host_real = resolver_endpoint_rds_dinamico()
-        db_name = os.environ.get('DB_NAME', 'veritas_db')
-        db_user = os.environ.get('DB_USER', 'veritas_admin')
-        db_port = int(os.environ.get('DB_PORT', 5432))
-        db_password = os.environ.get('DB_PASSWORD')
-
-        print(f"🔌 Abriendo túnel TCP hacia PostgreSQL en: {db_host_real}")
-        conn = pg8000.connect(host=db_host_real, database=db_name, user=db_user, password=db_password, port=db_port)
+        
+        conn = obtener_conexion_db()
         cursor = conn.cursor()
 
         # Evitamos la violación Not-Null de TablePlus inyectando un folio sintético manual
