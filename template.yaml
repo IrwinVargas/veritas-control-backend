@@ -19,8 +19,8 @@ Globals:
       - x86_64
     Environment:
       Variables:
-        DYNAMODB_TABLE: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
-        BUCKET_NAME: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
+        DYNAMODB_TABLE: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+        BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
         DB_HOST_PARAM: !Sub '/veritas-control/${Environment}/rds/postgres-endpoint'
         DB_PORT: "5432"
         DB_USER: "veritas_admin"
@@ -1388,7 +1388,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-              Resource: '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
+              Resource: !Sub '{{resolve:ssm:/veritas-control/${Environment}/dynamo/materialidad-table-name}}'
     Metadata:
       BuildMethod: python3.11
 
@@ -1415,7 +1415,7 @@ Resources:
       Handler: step3_escultor_handler.handler
       CodeUri: ./lambdas/materialidad/
       Policies:
-        - S3CrudPolicy: { BucketName: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
+        - S3CrudPolicy: { BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}' }
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
@@ -1461,7 +1461,7 @@ Resources:
       MemorySize: 512
       Policies:
         - S3CrudPolicy:
-            BucketName: '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
+            BucketName: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
       Events:
         ApiEvent:
           Type: Api
