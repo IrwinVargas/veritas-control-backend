@@ -1346,7 +1346,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
-          BUCKET_NAME: !Sub '{{resolve:ssm:/veritas-control/${Environment}/storage/materialidad-bucket-name}}'
+          BUCKET_NAME: '{{resolve:ssm:/veritas-control/dev/storage/materialidad-bucket-name}}'
           WORKER_LAMBDA_NAME: !Sub 'veritas-control-mat-worker-${Environment}'
       Policies:
         - Statement:
@@ -1410,8 +1410,7 @@ Resources:
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - S3CrudPolicy:
-            BucketName:
-              Fn::ImportValue: !Sub '/veritas-control/${Environment}/storage/materialidad-bucket-name'
+            BucketName: '{{resolve:ssm:/veritas-control/dev/storage/materialidad-bucket-name}}'
         - Statement:
             - Effect: Allow
               Action: ["dynamodb:UpdateItem"]
