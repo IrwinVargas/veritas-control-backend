@@ -104,34 +104,34 @@ class CanvasPapelMembretadoVeritas(canvas.Canvas):
         
         self.restoreState()
         
-    def handler(event, context):
-        print("🎨 Paso 3 Activo: Inicializando maquetación robusta y editorial premium...")
-        
-        tenant_id = event.get('tenant_id')
-        rfc_cliente = event.get('rfc_cliente')
-        nombre_cliente = event.get('nombre_cliente')
-        ano_fiscal = event.get('ano_fiscal', '2026')
-        contrato = event.get('contrato', 'PRESTACION_SERVICIOS')
-        texto_ia_crudo = event.get('texto_pericial', '')
-        catalogo_json = event.get('catalogo_json_payload', [])
+def handler(event, context):
+    print("🎨 Paso 3 Activo: Inicializando maquetación robusta y editorial premium...")
+    
+    tenant_id = event.get('tenant_id')
+    rfc_cliente = event.get('rfc_cliente')
+    nombre_cliente = event.get('nombre_cliente')
+    ano_fiscal = event.get('ano_fiscal', '2026')
+    contrato = event.get('contrato', 'PRESTACION_SERVICIOS')
+    texto_ia_crudo = event.get('texto_pericial', '')
+    catalogo_json = event.get('catalogo_json_payload', [])
 
-        bucket_name = os.environ.get('BUCKET_NAME')
-        table_name = os.environ.get('DYNAMODB_TABLE')
-        
-        # Compilación binaria en memoria RAM del contenedor
-        pdf_buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            pdf_buffer, pagesize=letter,
-            rightMargin=45, leftMargin=45, topMargin=110, bottomMargin=75
-        )
-        
-        story = []
-        
-        # ... (Aquí continúa la inserción de párrafos, tablas y cláusulas del SAT) ...
-        
-        # 🎯 CONSTRUCCIÓN FINAL VINCULADA A TU CANVAS MAESTRO:
-        # SAM invocará este CanvaMaker vectorizado con los trapecios bronce y azul marino
-        doc.build(story, canvasmaker=CanvasPapelMembretadoVeritas)
-        
-        print("🎯 PDF Esculpido de forma exitosa y guardado en S3.")
-        return {"status": "FINISHED"}
+    bucket_name = os.environ.get('BUCKET_NAME')
+    table_name = os.environ.get('DYNAMODB_TABLE')
+    
+    # Compilación binaria en memoria RAM del contenedor
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        pdf_buffer, pagesize=letter,
+        rightMargin=45, leftMargin=45, topMargin=110, bottomMargin=75
+    )
+    
+    story = []
+    
+    # ... (Aquí continúa la inserción de párrafos, tablas y cláusulas del SAT) ...
+    
+    # 🎯 CONSTRUCCIÓN FINAL VINCULADA A TU CANVAS MAESTRO:
+    # SAM invocará este CanvaMaker vectorizado con los trapecios bronce y azul marino
+    doc.build(story, canvasmaker=CanvasPapelMembretadoVeritas)
+    
+    print("🎯 PDF Esculpido de forma exitosa y guardado en S3.")
+    return {"status": "FINISHED"}
