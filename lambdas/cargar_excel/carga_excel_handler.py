@@ -8,13 +8,13 @@ def obtener_conexion_db_excel():
     """
     [OPCIÓN B GLOBALS] Conecta la inyección relacional masiva de forma interna
     usando las variables inyectadas de forma nativa por tu cabecera central.
-    Cero strings en duro, cero time-outs por falta de internet.
+    Cero consultas de red en frío, cero fallback de strings en duro.
     """
     global _db_connection_excel
     if _db_connection_excel and not _db_connection_excel.is_closed: 
         return _db_connection_excel
         
-    # Succión exacta de las llaves de tu template Globals (¡Cero nombres inventados!)
+    # Succión exacta de las 5 llaves de entorno que inyecta tu template
     db_host_real = os.environ.get('DB_HOST_PARAM')
     db_port_str  = os.environ.get('DB_PORT')
     db_user      = os.environ.get('DB_USER')
@@ -42,11 +42,12 @@ def handler(event, context):
 
         facturas_a_insertar = []
         for row in facturas:
-            uuid = str(row.get('folio fiscal', row.get('folio_fiscal', ''))).strip()
+            # 🚀 SINCRONIZACIÓN REAL: Jalar el UUID desde la llave exacta de tu archivo 'Folio Fiscal'
+            uuid = str(row.get('Folio Fiscal', row.get('folio_fiscal', ''))).strip()
             if not uuid or uuid == 'None' or uuid == '': 
                 continue
 
-            fecha_str = str(row.get('fecha y hora timbrado', row.get('fecha_hora_timbrado', '1970-01-01 00:00:00')))
+            fecha_str = str(row.get('Fecha y Hora Timbrado', row.get('fecha_hora_timbrado', '1970-01-01 00:00:00')))
 
             # Limpiador de importes monetarios avanzados ($11.553,70 -> 11553.70)
             def safe_float(val):
@@ -61,35 +62,35 @@ def handler(event, context):
                 except:
                     return 0.0
 
-            # 🚀 REPARACIÓN REINA: Se extirpa str(row.get('folio', '')) de la segunda posición
-            # La tupla ahora mide exactamente 26 columnas relacionales purificadas para hacer match
+            # 🚀 REPARACIÓN REINA: Se elimina la columna fantasma 'folio' de la tupla
+            # La tupla ahora mide exactamente 26 campos limpios listos para hacer match con Postgres
             facturas_a_insertar.append((
                 tenant_id, 
                 fecha_str,
-                str(row.get('rfc emisor', '')).upper().strip(), 
-                str(row.get('nombre emisor', '')),
-                str(row.get('rfc receptor', '')).upper().strip(), 
-                str(row.get('nombre receptor', '')),
-                str(row.get('descripcion', '')), 
-                safe_float(row.get('sub total')), 
-                safe_float(row.get('total impuestos trasladados iva', row.get('total_iva', 0.0))), 
-                safe_float(row.get('total')), 
-                str(row.get('forma pago', '')), 
-                str(row.get('metodo pago', '')), 
-                str(row.get('moneda', 'MXN')),
-                str(row.get('regimen fiscal receptor', '')), 
-                str(row.get('domicilio fiscal receptor', '')),
-                str(row.get('serie', '')), 
-                str(row.get('uso cfdi', '')), 
-                str(row.get('clave prod serv', '')),
-                safe_float(row.get('cantidad', 1.0)), 
-                str(row.get('clave unidad', '')), 
-                str(row.get('unidad', '')),
-                str(row.get('tipo de comprobante', 'I')).upper().strip(), 
+                str(row.get('RFC EMISOR', '')).upper().strip(), 
+                str(row.get('NOMBRE EMISOR', '')),
+                str(row.get('RFC RECEPTOR', '')).upper().strip(), 
+                str(row.get('NOMBRE RECEPTOR', '')),
+                str(row.get('Descripcion', '')), 
+                safe_float(row.get('Sub Total')), 
+                safe_float(row.get('Total Impuestos Trasladados IVA', row.get('total_iva', 0.0))), 
+                safe_float(row.get('Total')), 
+                str(row.get('Forma Pago', '')), 
+                str(row.get('Metodo Pago', '')), 
+                str(row.get('Moneda', 'MXN')),
+                str(row.get('Regimen Fiscal Receptor', '')), 
+                str(row.get('Domicilio Fiscal Receptor', '')),
+                str(row.get('Serie', '')), 
+                str(row.get('Uso CFDI', '')), 
+                str(row.get('Clave Prod Serv', '')),
+                safe_float(row.get('Cantidad', 1.0)), 
+                str(row.get('Clave Unidad', '')), 
+                str(row.get('Unidad', '')),
+                str(row.get('Tipo De Comprobante', 'I')).upper().strip(), 
                 uuid,
-                str(row.get('sello cfd', '')), 
-                str(row.get('no certificado sat', '')), 
-                str(row.get('sello sat', ''))
+                str(row.get('Sello CFD', '')), 
+                str(row.get('No Certificado SAT', '')), 
+                str(row.get('Sello SAT', ''))
             ))
 
         print(f"✅ Tupla purificada: {len(facturas_a_insertar)} transacciones monetarias listas para Postgres.")
