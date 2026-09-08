@@ -102,13 +102,32 @@ def handler(event, context):
         # Evitamos la violación Not-Null de TablePlus inyectando un folio sintético manual
         folio_manual_uuid = f"MANUAL-{str(uuid.uuid4()).upper()}"
 
+        # Sincronización exacta: 10 columnas declaradas = 10 valores inyectados
         query_insert = """
             INSERT INTO facturas_sat (
-                tenant_id, rfc_emisor, rfc_receptor, nombre_receptor, folio_fiscal_uuid,
-                fecha_hora_timbrado, sub_total, total_iva, total, tipo_de_comprobante
-            ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0.00, 0.00, 0.00, 'I');
+                tenant_id,
+                rfc_emisor,
+                rfc_receptor,
+                nombre_receptor,
+                folio_fiscal_uuid,
+                fecha_hora_timbrado,
+                sub_total,
+                total_iva,
+                total,
+                tipo_de_comprobante
+            ) VALUES (
+                %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0.00, 0.00, 0.00, 'I'
+            );
         """
-        cursor.execute(query_insert, (tenant_id, bufete_rfc.upper().strip(), rfc, nombre, folio_manual_uuid))
+        
+        cursor.execute(query_insert, (
+            tenant_id,                         # 1. %s -> tenant_id
+            bufete_rfc.upper().strip(),        # 2. %s -> rfc_emisor
+            rfc,                               # 3. %s -> rfc_receptor
+            nombre,                            # 4. %s -> nombre_receptor
+            folio_manual_uuid                  # 5. %s -> folio_fiscal_uuid
+        ))
+        
         conn.commit()
         cursor.close()
         conn.close()
