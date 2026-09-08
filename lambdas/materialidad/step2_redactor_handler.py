@@ -1,9 +1,7 @@
-# lambdas/materialidad/step2_redactor_handler.py
 import os
 import json
 import boto3
 
-# Inicializamos el cliente nativo de Amazon Bedrock en la región asignada
 bedrock_client = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
 def handler(event, context):
@@ -14,10 +12,8 @@ def handler(event, context):
     contrato_tipo = event.get('contrato', 'PRESTACION_SERVICIOS')
     ano_fiscal = event.get('ano_fiscal', '2026')
     
-    # Succionamos el string de conceptos purificados que nos heredó el Paso 1 de Postgres
     conceptos_sat_crudos = event.get('string_catalogo_ia', 'Servicios administrativos corporativos')
 
-    # 🛡️ PROMPT DE MÁXIMA DEFECTOLOGÍA LEGAL JURÍDICA MEXICANA (ANTI-HUECOS DEL SAT)
     prompt_forense = f"""
     Actúa como un Perito Fiscal Mexicano de Élite y un Abogado Defensor experto en el Artículo 69-B del CFF.
     Redacta la sección 'SEGUNDO. DEFECTOLOGÍA OPERATIVA Y ENTREGABLES' para un expediente de materialidad inatacable.
@@ -36,12 +32,11 @@ def handler(event, context):
     
     Genera únicamente el cuerpo del texto legal justificado, usando etiquetas HTML básicas como <b> o <br/> si es necesario. No incluyas introducciones ni saludos de cortesía.
     """
-
-    # Estructuramos el payload oficial para Claude 3.5 / 4.5 Haiku
+    
     body_request = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 4000,
-        "temperature": 0.2, # Latencia baja y máxima precisión legal sin alucinaciones
+        "temperature": 0.2,
         "messages": [
             {
                 "role": "user",
@@ -51,9 +46,8 @@ def handler(event, context):
     })
 
     try:
-        # Invocamos el modelo fundacional de Amazon Bedrock
         response = bedrock_client.invoke_model(
-            modelId="anthropic.claude-3-5-haiku-20241022-v1:0", # O tu id de perfil de Claude 4.5
+            modelId="us.anthropic.claude-haiku-4-5-20251001-v1:0",
             contentType="application/json",
             accept="application/json",
             body=body_request
