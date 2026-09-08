@@ -52,7 +52,7 @@ def handler(event, context):
         correo_contacto = str(body.get('correo_contacto', '')).strip()
         correo_empresa = str(body.get('correo_empresa', '')).strip()
         tipo_contrato = str(body.get('tipo_contrato', 'PRESTACION_SERVICIOS')).strip().upper()
-        
+        tipo_flujo = str(body.get('tipo_flujo', 'PREVENTIVO')).strip().upper()
         ano_fiscal_actual = str(datetime.now().year)
         ano_fiscal = str(body.get('ano_fiscal', ano_fiscal_actual))
 
@@ -77,7 +77,7 @@ def handler(event, context):
                 'nombre_cliente': nombre,
                 'ano_fiscal': ano_fiscal,
                 'contrato_tipo': tipo_contrato,
-                'tipo_flujo': 'PREVENTIVO',
+                'tipo_flujo': tipo_flujo,
                 'progreso_porcentaje': 0,
                 'estatus_global': 'PENDIENTE',
                 'meta_contacto': {
