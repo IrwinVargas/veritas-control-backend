@@ -5,10 +5,15 @@ import boto3
 import pg8000.dbapi
 from datetime import datetime
 
+# Inicializamos el búnker de DynamoDB NoSQL (Inmune a bloqueos dentro de tu VPC)
 dynamodb = boto3.resource('dynamodb')
 _db_connection = None
 
 def obtener_conexion_db():
+    """
+    Recicla el canal TCP relacional interno leyendo de forma directa las variables
+    de entorno inyectadas de forma nativa por tu bloque de Globals.
+    """
     global _db_connection
     print(_db_connection)
     if _db_connection and not _db_connection.is_closed: 
@@ -22,7 +27,6 @@ def obtener_conexion_db():
         port=int(os.environ.get('DB_PORT', 5432)),
         timeout=5 # Timeout de socket en segundos
     )
-    
     return _db_connection
 
 def handler(event, context):
@@ -40,7 +44,6 @@ def handler(event, context):
         tenant_id = authorizer.get('custom:tenant_id')
         bufete_rfc = authorizer.get('custom:company_rfc', 'XAXX010101000')
 
-        # 📥 CAPTURA COMPLETA DE LA CÉLULA CORPORATIVA EXPANDIDA EN TU FRONTEND
         body = json.loads(event.get('body', '{}'))
         rfc = str(body.get('rfc', '')).strip().upper()
         nombre = str(body.get('nombre', '')).strip()
@@ -49,40 +52,32 @@ def handler(event, context):
         correo_contacto = str(body.get('correo_contacto', '')).strip()
         correo_empresa = str(body.get('correo_empresa', '')).strip()
         tipo_contrato = str(body.get('tipo_contrato', 'PRESTACION_SERVICIOS')).strip().upper()
+        
         ano_fiscal_actual = str(datetime.now().year)
-        ano_fiscal = str(body.get('ano_fiscal', ano_fiscal_actual)) # Captura el año dinámico seleccionado en el select
+        ano_fiscal = str(body.get('ano_fiscal', ano_fiscal_actual))
 
         if not tenant_id or not rfc or not nombre:
             return {'statusCode': 400, 'headers': headers, 'body': json.dumps({'error': 'RFC y Razón Social son campos estrictamente requeridos.'})}
 
         # =========================================================================
-        # 🚀 REPARACIÓN COMPUERTA 1: PERSISTENCIA EN EL BÚNKED DYNAMODB NOSQL
-        # Guardamos la célula de contacto y el tipo de contrato para uso de los Prompts
+        # 💾 BÚNKER 1: PERSISTENCIA EN EL EXPEDIENTE NOSQL MAESTRO (DYNAMODB)
         # =========================================================================
         entorno_actual = os.environ.get('Environment', 'dev')
         nombre_tabla_nosql = os.environ.get('DYNAMODB_TABLE')
-        
         if not nombre_tabla_nosql:
             nombre_tabla_nosql = f"veritas-control-materialidad-status-{entorno_actual}"
             
-        print(f"🗄️ Enlazando con la tabla NoSQL activa de materialidad: [{nombre_tabla_nosql}]")
         table_nosql = dynamodb.Table(nombre_tabla_nosql)
-        
-        # Estructuramos la clave compuesta anual inmutable de Veritas
         hash_key_nosql = f"{tenant_id}#{rfc}#{tipo_contrato}#{ano_fiscal}"
-        print(f"💾 Fundando registro maestro NoSQL de contacto: {hash_key_nosql}")
         
         table_nosql.put_item(
             Item={
-                # 🚀 REPARACIÓN REINA: Cambiamos el nombre de la llave para que coincida exactamente
-                # con la Hash Key declarada en tu infraestructura de bases de datos
-                'tenant_rfc': hash_key_nosql, 
-                
+                'tenant_rfc': hash_key_nosql, # Match exacto con tu Hash Key física
                 'rfc_cliente': rfc,
                 'nombre_cliente': nombre,
                 'ano_fiscal': ano_fiscal,
                 'contrato_tipo': tipo_contrato,
-                'tipo_flujo': 'PREVENTIVO', 
+                'tipo_flujo': 'PREVENTIVO',
                 'progreso_porcentaje': 0,
                 'estatus_global': 'PENDIENTE',
                 'meta_contacto': {
@@ -96,47 +91,46 @@ def handler(event, context):
             }
         )
         
+        # =========================================================================
+        # 🔌 BÚNKER 2: MATRIZ DE PERSISTENCIA RELACIONAL (POSTGRESQL)
+        # =========================================================================
         conn = obtener_conexion_db()
         cursor = conn.cursor()
 
-        # Evitamos la violación de truncado amarrando exactamente 40 caracteres (4 + 36)
+        # Prefijo de 4 caracteres + 36 del UUID = 40 caracteres fijos (character varying(40))
         folio_manual_uuid = f"MAN-{str(uuid.uuid4()).upper()}"
 
-        # 1️⃣ PRIMERO: Fundamos/Aseguramos la existencia del cliente en la tabla maestra
+        # 1️⃣ PRIMERO: Aseguramos el cliente maestro relacional para no violar la Foreign Key
         query_insert_cliente = """
             INSERT INTO clientes_veritas (tenant_id, rfc_receptor, nombre_receptor, creado_el, actualizado_el)
             VALUES (%s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (tenant_id, rfc_receptor) 
             DO UPDATE SET nombre_receptor = EXCLUDED.nombre_receptor, actualizado_el = CURRENT_TIMESTAMP;
         """
-        print(f"👤 Indexando cliente maestro en Postgres: ({tenant_id}, {rfc})")
         cursor.execute(query_insert_cliente, (tenant_id, rfc, nombre))
 
-        # 2️⃣ SEGUNDO: Inyectamos la factura sintética (Ahora la FK se cumple al 100%)
+        # 2️⃣ SEGUNDO: Inyectamos la factura sintética libre de la columna inexistente 'folio'
         query_insert_factura = """
             INSERT INTO facturas_sat (
-                tenant_id, rfc_emisor, rfc_receptor, nombre_receptor, folio_fiscal_uuid,   
-                fecha_hora_timbrado, sub_total, total_iva, total, tipo_de_comprobante  
+                tenant_id, rfc_emisor, rfc_receptor, nombre_receptor, folio_fiscal_uuid,
+                fecha_hora_timbrado, sub_total, total_iva, total, tipo_de_comprobante
             ) VALUES (
                 %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0.00, 0.00, 0.00, 'I'
             );
         """
-        print(f"📄 Ligando factura sintética al cliente: {folio_manual_uuid}")
         cursor.execute(query_insert_factura, (
-            tenant_id,                         
-            bufete_rfc.upper().strip(),        
-            rfc,                               
-            nombre,                            
-            folio_manual_uuid                  
+            tenant_id, 
+            bufete_rfc.upper().strip(), 
+            rfc, 
+            nombre, 
+            folio_manual_uuid
         ))
         
-        # Confirmamos la transacción dual de forma atómica
         conn.commit()
         cursor.close()
         conn.close()
 
         print("Ingestión Dual Sincronizada completada con éxito rotundo.")
-        
         return {
             'statusCode': 200, 
             'headers': headers, 
@@ -147,5 +141,5 @@ def handler(event, context):
             })
         }
     except Exception as e:
-        print(f"❌ Crash en microservicio de alta manual expandido: {str(e)}")
+        print(f"❌ Error crítico en microservicio Postgres: {str(e)}")
         return {'statusCode': 500, 'headers': headers, 'body': json.dumps({'error': str(e)})}
