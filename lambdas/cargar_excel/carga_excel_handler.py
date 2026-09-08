@@ -6,22 +6,18 @@ import pg8000
 _db_connection_excel = None
 
 def obtener_conexion_db_excel():
-    """
-    [OPCIÓN B GLOBALS] Conecta la inyección relacional masiva de forma interna
-    usando las variables inyectadas de forma nativa por tu cabecera central.
-    Cero consultas de red en frío, cero fallback de strings en duro.
-    """
     global _db_connection_excel
     if _db_connection_excel and not _db_connection_excel.is_closed: 
         return _db_connection_excel
         
-    db_host_real = os.environ.get('DB_HOST_PARAM')
+    # 🎯 SUCCIÓN PERFECTA: Jalamos la variable de entorno que CloudFormation ya resolvió
+    db_host_real = os.environ.get('DB_HOST')
     db_port_str  = os.environ.get('DB_PORT')
     db_user      = os.environ.get('DB_USER')
     db_name      = os.environ.get('DB_NAME')
     db_password  = os.environ.get('DB_PASSWORD')
     
-    print(f"🔌 [Carga Excel] Abriendo socket TCP interno dentro de la VPC privada: {db_host_real}:{db_port_str}")
+    print(f"🔌 [Carga Excel] Conectando de forma interna a: {db_host_real}:{db_port_str}")
     _db_connection_excel = pg8000.connect(
         host=db_host_real,
         port=int(db_port_str),
