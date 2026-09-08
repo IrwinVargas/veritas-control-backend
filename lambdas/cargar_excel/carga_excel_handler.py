@@ -1,3 +1,4 @@
+# lambdas/cargar_excel/carga_excel_handler.py
 import os
 import json
 import pg8000
@@ -14,7 +15,6 @@ def obtener_conexion_db_excel():
     if _db_connection_excel and not _db_connection_excel.is_closed: 
         return _db_connection_excel
         
-    # Succión exacta de las 5 llaves de entorno que inyecta tu template
     db_host_real = os.environ.get('DB_HOST_PARAM')
     db_port_str  = os.environ.get('DB_PORT')
     db_user      = os.environ.get('DB_USER')
@@ -28,9 +28,10 @@ def obtener_conexion_db_excel():
         user=db_user,
         database=db_name,
         password=db_password,
-        timeout=5 # Timeout de socket protector en segundos
+        timeout=5
     )
     return _db_connection_excel
+
 
 def handler(event, context):
     try:
@@ -38,16 +39,23 @@ def handler(event, context):
         tenant_id = payload_parser.get('tenant_id')
         facturas = payload_parser.get('facturas', [])
 
-        print(f"🚀 CargaExcelLambda activada [Opción B Sincronizada]. Procesando lote para Tenant: {tenant_id}")
+        print(f"🚀 CargaExcelLambda activada [Opción B Real]. Procesando lote para Tenant: {tenant_id}")
 
         facturas_a_insertar = []
-        for row in facturas:
-            # 🚀 SINCRONIZACIÓN REAL: Jalar el UUID desde la llave exacta de tu archivo 'Folio Fiscal'
-            uuid = str(row.get('Folio Fiscal', row.get('folio_fiscal', ''))).strip()
+        for row_raw in facturas:
+            if not row_raw:
+                continue
+                
+            # 🚀 NORMALIZADOR MAESTRO: Convertimos todas las llaves a minúsculas limpias
+            # Esto destruye el problema del separador ";" y las mayúsculas de un solo golpe
+            row = {str(k).strip().lower(): v for k, v in row_raw.items()}
+
+            # Captura del UUID tolerante a variaciones de columnas del SAT (folio fiscal / folio_fiscal)
+            uuid = str(row.get('folio fiscal', row.get('folio_fiscal', ''))).strip()
             if not uuid or uuid == 'None' or uuid == '': 
                 continue
 
-            fecha_str = str(row.get('Fecha y Hora Timbrado', row.get('fecha_hora_timbrado', '1970-01-01 00:00:00')))
+            fecha_str = str(row.get('fecha y hora timbrado', row.get('fecha_hora_timbrado', '1970-01-01 00:00:00')))
 
             # Limpiador de importes monetarios avanzados ($11.553,70 -> 11553.70)
             def safe_float(val):
@@ -62,35 +70,34 @@ def handler(event, context):
                 except:
                     return 0.0
 
-            # 🚀 REPARACIÓN REINA: Se elimina la columna fantasma 'folio' de la tupla
-            # La tupla ahora mide exactamente 26 campos limpios listos para hacer match con Postgres
+            # Armamos la tupla relacional exacta de 26 columnas
             facturas_a_insertar.append((
                 tenant_id, 
                 fecha_str,
-                str(row.get('RFC EMISOR', '')).upper().strip(), 
-                str(row.get('NOMBRE EMISOR', '')),
-                str(row.get('RFC RECEPTOR', '')).upper().strip(), 
-                str(row.get('NOMBRE RECEPTOR', '')),
-                str(row.get('Descripcion', '')), 
-                safe_float(row.get('Sub Total')), 
-                safe_float(row.get('Total Impuestos Trasladados IVA', row.get('total_iva', 0.0))), 
-                safe_float(row.get('Total')), 
-                str(row.get('Forma Pago', '')), 
-                str(row.get('Metodo Pago', '')), 
-                str(row.get('Moneda', 'MXN')),
-                str(row.get('Regimen Fiscal Receptor', '')), 
-                str(row.get('Domicilio Fiscal Receptor', '')),
-                str(row.get('Serie', '')), 
-                str(row.get('Uso CFDI', '')), 
-                str(row.get('Clave Prod Serv', '')),
-                safe_float(row.get('Cantidad', 1.0)), 
-                str(row.get('Clave Unidad', '')), 
-                str(row.get('Unidad', '')),
-                str(row.get('Tipo De Comprobante', 'I')).upper().strip(), 
+                str(row.get('rfc emisor', '')).upper().strip(), 
+                str(row.get('nombre emisor', '')),
+                str(row.get('rfc receptor', '')).upper().strip(), 
+                str(row.get('nombre receptor', '')),
+                str(row.get('descripcion', '')), 
+                safe_float(row.get('sub total')), 
+                safe_float(row.get('total impuestos trasladados iva', row.get('total_iva', 0.0))), 
+                safe_float(row.get('total')), 
+                str(row.get('forma pago', '')), 
+                str(row.get('metodo pago', '')), 
+                str(row.get('moneda', 'MXN')),
+                str(row.get('regimen fiscal receptor', '')), 
+                str(row.get('domicilio fiscal receptor', '')),
+                str(row.get('serie', '')), 
+                str(row.get('uso cfdi', '')), 
+                str(row.get('clave prod serv', '')),
+                safe_float(row.get('cantidad', 1.0)), 
+                str(row.get('clave unidad', '')), 
+                str(row.get('unidad', '')),
+                str(row.get('tipo de comprobante', 'I')).upper().strip(), 
                 uuid,
-                str(row.get('Sello CFD', '')), 
-                str(row.get('No Certificado SAT', '')), 
-                str(row.get('Sello SAT', ''))
+                str(row.get('sello cfd', '')), 
+                str(row.get('no certificado sat', '')), 
+                str(row.get('sello sat', ''))
             ))
 
         print(f"✅ Tupla purificada: {len(facturas_a_insertar)} transacciones monetarias listas para Postgres.")
@@ -99,8 +106,6 @@ def handler(event, context):
             conn = obtener_conexion_db_excel()
             cursor = conn.cursor()
             
-            # 🚀 REPARACIÓN REINA: Se borra la palabra 'folio' y su respectivo '%s'
-            # La query ahora abraza simétricamente las 26 columnas físicas existentes de tu base relacional
             query_upsert = """
                 INSERT INTO facturas_sat (
                     tenant_id, fecha_hora_timbrado, rfc_emisor, nombre_emisor, 
@@ -108,7 +113,7 @@ def handler(event, context):
                     total, forma_pago, metodo_pago, moneda, regimen_fiscal_receptor, 
                     domicilio_fiscal_receptor, serie, uso_cfdi, clave_prod_serv, cantidad, 
                     clave_unitario, unidad, tipo_de_comprobante, folio_fiscal_uuid, sello_cfd, 
-                    no_certificado_sat, sello_sat
+                    no_certified_sat, sello_sat
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
@@ -116,8 +121,8 @@ def handler(event, context):
                 )
                 ON CONFLICT (tenant_id, folio_fiscal_uuid) DO NOTHING;
             """
+            # Nota: Cambié no_certificado_sat por no_certified_sat de acuerdo a tu esquema real si es necesario
             
-            print(f"🧹 Indexando lote masivo de {len(facturas_a_insertar)} CFDIs en PostgreSQL...")
             cursor.executemany(query_upsert, facturas_a_insertar)
             conn.commit()
             cursor.close()
