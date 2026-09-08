@@ -99,12 +99,21 @@ def handler(event, context):
         conn = obtener_conexion_db()
         cursor = conn.cursor()
 
-        # 🚀 SOLUCIÓN REINA: Recortamos el prefijo para lograr exactamente 40 caracteres (4 + 36)
-        # Esto es 100% compatible con tu columna 'character varying(40)' de la base de datos
+        # Evitamos la violación de truncado amarrando exactamente 40 caracteres (4 + 36)
         folio_manual_uuid = f"MAN-{str(uuid.uuid4()).upper()}"
 
-        # Sincronización exacta: 10 columnas declaradas = 10 valores inyectados
-        query_insert = """
+        # 1️⃣ PRIMERO: Fundamos/Aseguramos la existencia del cliente en la tabla maestra
+        query_insert_cliente = """
+            INSERT INTO clientes_veritas (tenant_id, rfc_receptor, nombre_receptor, creado_el, actualizado_el)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (tenant_id, rfc_receptor) 
+            DO UPDATE SET nombre_receptor = EXCLUDED.nombre_receptor, actualizado_el = CURRENT_TIMESTAMP;
+        """
+        print(f"👤 Indexando cliente maestro en Postgres: ({tenant_id}, {rfc})")
+        cursor.execute(query_insert_cliente, (tenant_id, rfc, nombre))
+
+        # 2️⃣ SEGUNDO: Inyectamos la factura sintética (Ahora la FK se cumple al 100%)
+        query_insert_factura = """
             INSERT INTO facturas_sat (
                 tenant_id, rfc_emisor, rfc_receptor, nombre_receptor, folio_fiscal_uuid,   
                 fecha_hora_timbrado, sub_total, total_iva, total, tipo_de_comprobante  
@@ -112,20 +121,22 @@ def handler(event, context):
                 %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0.00, 0.00, 0.00, 'I'
             );
         """
-        
-        cursor.execute(query_insert, (
+        print(f"📄 Ligando factura sintética al cliente: {folio_manual_uuid}")
+        cursor.execute(query_insert_factura, (
             tenant_id,                         
             bufete_rfc.upper().strip(),        
             rfc,                               
             nombre,                            
-            folio_manual_uuid                  # 🎯 Entra con longitud matemática de 40 fija
+            folio_manual_uuid                  
         ))
         
+        # Confirmamos la transacción dual de forma atómica
         conn.commit()
         cursor.close()
         conn.close()
 
         print("Ingestión Dual Sincronizada completada con éxito rotundo.")
+        
         return {
             'statusCode': 200, 
             'headers': headers, 
