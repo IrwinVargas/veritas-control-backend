@@ -42,11 +42,9 @@ def handler(event, context):
             if not row_raw:
                 continue
                 
-            # 🚀 NORMALIZADOR MAESTRO: Convertimos todas las llaves a minúsculas limpias
-            # Esto destruye el problema del separador ";" y las mayúsculas de un solo golpe
+            # Normalizador de llaves del SAT tolerante al delimitador ";" de tu archivo real
             row = {str(k).strip().lower(): v for k, v in row_raw.items()}
 
-            # Captura del UUID tolerante a variaciones de columnas del SAT (folio fiscal / folio_fiscal)
             uuid = str(row.get('folio fiscal', row.get('folio_fiscal', ''))).strip()
             if not uuid or uuid == 'None' or uuid == '': 
                 continue
@@ -66,12 +64,12 @@ def handler(event, context):
                 except:
                     return 0.0
 
-            # Armamos la tupla relacional exacta de 26 columnas
+            # 🚀 REPARACIÓN REINA: Se elimina 'nombre emisor' de la tupla.
+            # La tupla ahora mide exactamente 25 campos limpios y simétricos listos para Postgres
             facturas_a_insertar.append((
                 tenant_id, 
                 fecha_str,
                 str(row.get('rfc emisor', '')).upper().strip(), 
-                str(row.get('nombre emisor', '')),
                 str(row.get('rfc receptor', '')).upper().strip(), 
                 str(row.get('nombre receptor', '')),
                 str(row.get('descripcion', '')), 
@@ -102,9 +100,11 @@ def handler(event, context):
             conn = obtener_conexion_db_excel()
             cursor = conn.cursor()
             
+            # 🚀 REPARACIÓN REINA: Se extirpa la palabra 'nombre_emisor' y su respectivo '%s'
+            # La query calza matemáticamente con las 25 columnas físicas reales de tu tabla facturas_sat
             query_upsert = """
                 INSERT INTO facturas_sat (
-                    tenant_id, fecha_hora_timbrado, rfc_emisor, nombre_emisor, 
+                    tenant_id, fecha_hora_timbrado, rfc_emisor,  
                     rfc_receptor, nombre_receptor, descripcion, sub_total, total_iva, 
                     total, forma_pago, metodo_pago, moneda, regimen_fiscal_receptor, 
                     domicilio_fiscal_receptor, serie, uso_cfdi, clave_prod_serv, cantidad, 
@@ -113,12 +113,12 @@ def handler(event, context):
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (tenant_id, folio_fiscal_uuid) DO NOTHING;
             """
-            # Nota: Cambié no_certificado_sat por no_certified_sat de acuerdo a tu esquema real si es necesario
             
+            print(f"🧹 Indexando lote masivo de {len(facturas_a_insertar)} CFDIs en PostgreSQL...")
             cursor.executemany(query_upsert, facturas_a_insertar)
             conn.commit()
             cursor.close()
