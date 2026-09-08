@@ -59,7 +59,13 @@ def handler(event, context):
         # 🚀 REPARACIÓN COMPUERTA 1: PERSISTENCIA EN EL BÚNKED DYNAMODB NOSQL
         # Guardamos la célula de contacto y el tipo de contrato para uso de los Prompts
         # =========================================================================
+        entorno_actual = os.environ.get('Environment', 'dev')
         nombre_tabla_nosql = os.environ.get('DYNAMODB_TABLE')
+        
+        if not nombre_tabla_nosql:
+            nombre_tabla_nosql = f"veritas-control-materialidad-status-{entorno_actual}"
+            
+        print(f"🗄️ Enlazando con la tabla NoSQL activa de materialidad: [{nombre_tabla_nosql}]")
         table_nosql = dynamodb.Table(nombre_tabla_nosql)
         
         # Estructuramos la clave compuesta anual inmutable de Veritas
@@ -68,12 +74,15 @@ def handler(event, context):
         
         table_nosql.put_item(
             Item={
-                'tenant_rfc_year_contract': hash_key_nosql,
+                # 🚀 REPARACIÓN REINA: Cambiamos el nombre de la llave para que coincida exactamente
+                # con la Hash Key declarada en tu infraestructura de bases de datos
+                'tenant_rfc': hash_key_nosql, 
+                
                 'rfc_cliente': rfc,
                 'nombre_cliente': nombre,
                 'ano_fiscal': ano_fiscal,
                 'contrato_tipo': tipo_contrato,
-                'tipo_flujo': 'PREVENTIVO', # Al ser alta manual, nace por defecto en preventivo secuencial
+                'tipo_flujo': 'PREVENTIVO', 
                 'progreso_porcentaje': 0,
                 'estatus_global': 'PENDIENTE',
                 'meta_contacto': {
