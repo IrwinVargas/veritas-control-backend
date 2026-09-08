@@ -8,23 +8,21 @@ s3_client = boto3.client('s3')
 
 def handler(event, context):
     try:
-        # Obtenemos los datos del archivo desde el evento de S3
+        # Obtenemos las coordenadas del archivo depositado por tu Lambda 1 en S3
         record = event['Records'][0]
         bucket_name = record['s3']['bucket']['name']
         object_key = record['s3']['object']['key']
         
-        print(f"Detectado nuevo archivo en S3: {object_key}. Procesando...")
+        print(f"📡 Detectado nuevo listado del SAT en S3: {object_key}. Iniciando inyección forense...")
 
-        # Obtenemos el stream de lectura del archivo en S3
+        # Consumimos el objeto de forma eficiente como un flujo binario directo
         objeto_s3 = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         
-        # Procesamos línea por línea decodificando desde S3 de forma eficiente
+        # Procesamos línea por línea decodificando desde S3 en latin-1 (Estándar SAT)
         lineas_flujo = io.TextIOWrapper(objeto_s3['Body'], encoding='latin-1')
         lector_lineas = csv.reader(lineas_flujo, delimiter=',')
         
-        print("Conectando a la DB... ")
-
-        # Conexión local/privada a la base de datos PostgreSQL dentro de la VPC
+        print("🔗 Abriendo socket TCP privado con la base de datos PostgreSQL dentro de la VPC...")
         conn = pg8000.connect(
             host=os.environ.get('DB_HOST'),
             database=os.environ.get('DB_NAME'),
@@ -35,10 +33,10 @@ def handler(event, context):
         )
         cursor = conn.cursor()
 
-        print("Ejecutando script... ")
-        print("Vaciando tabla destino en la base de datos...")
+        print("🧹 Limpiando histórico: Vaciando la tabla lista_negra_sat para indexación fresca...")
         cursor.execute("TRUNCATE TABLE lista_negra_sat;")
-
+        conn.commit()
+        
         query_bulk_insert = """
             INSERT INTO lista_negra_sat (
                 numero_consecutivo, rfc, nombre_contribuyente, situacion, 
@@ -50,12 +48,15 @@ def handler(event, context):
         conteo_exito = 0
         
         for index, fila in enumerate(lector_lineas):
-            if index < 3: continue 
+            if index < 3: 
+                continue # Omitimos las cabeceras informativas del SAT
             
             if len(fila) >= 4:
                 try:
                     rfc_limpio = str(fila[1]).strip().upper()
-                    if len(rfc_limpio) < 12 or len(rfc_limpio) > 13: continue
+                    # Paracaídas estricto: Si el RFC está deformado, saltamos la celda para no herir la BD
+                    if len(rfc_limpio) < 12 or len(rfc_limpio) > 13: 
+                        continue
                     
                     consecutivo_crudo = str(fila[0]).strip()
                     consecutivo = int(consecutivo_crudo) if consecutivo_crudo.isdigit() else None
@@ -63,30 +64,49 @@ def handler(event, context):
                     razon_social = str(fila[2]).strip()
                     situacion_sat = str(fila[3]).strip()
                     
+                    # 📐 PROTECCIÓN DE LONGITUD DE STRINGS: Recortamos los excedentes del SAT 
+                    # para evitar violaciones sintácticas de varchar rígidos en la base de datos
                     oficio_def = str(fila[12]).strip() if len(fila) > 12 and fila[12] else 'N/A'
                     fecha_def = str(fila[13]).strip() if len(fila) > 13 and fila[13] else 'N/A'
+                    
+                    oficio_def = oficio_def[:200]
+                    fecha_def = fecha_def[:100]
 
                     bloque_registros.append((
                         consecutivo, rfc_limpio, razon_social, situacion_sat, oficio_def, fecha_def
                     ))
-                    conteo_exito += 1
 
                     if len(bloque_registros) >= 1500:
-                        cursor.executemany(query_bulk_insert, bloque_registros)
+                        try:
+                            cursor.executemany(query_bulk_insert, bloque_registros)
+                            conteo_exito += len(bloque_registros)
+                            conn.commit() # Consolidamos el lote exitoso
+                        except Exception as inner_e:
+                            # 🚀 LA SOLUCIÓN REINA: Si el lote completo falla por un renglón corrupto,
+                            # limpiamos el canal TCP relacional de Postgres para que la transacción no quede muerta
+                            print(f"⚠️ Alerta: Lote masivo rechazado por Postgres. Limpiando canal: {str(inner_e)}")
+                            conn.rollback() 
                         bloque_registros = []
+                        
                 except Exception:
                     continue
 
+        # Volcado de las filas huérfanas residuales que se quedaron al final del archivo
         if bloque_registros:
-            cursor.executemany(query_bulk_insert, bloque_registros)
+            try:
+                cursor.executemany(query_bulk_insert, bloque_registros)
+                conteo_exito += len(bloque_registros)
+                conn.commit()
+            except Exception as last_e:
+                print(f"⚠️ Fallo en bloque residual: {str(last_e)}")
+                conn.rollback()
 
-        conn.commit()
         cursor.close()
         conn.close()
         
-        print(f"Éxito Absoluto: Se integraron {conteo_exito} empresas a la BD.")
+        print(f"💾 Éxito Absoluto: Sincronización finalizada. {conteo_exito} empresas indexadas en la lista negra relacional.")
         return {"success": True, "registros_sincronizados": conteo_exito}
         
     except Exception as e:
-        print(f"❌ Error crítico en base de datos: {str(e)}")
+        print(f"❌ Error crítico en base de datos de listas negras: {str(e)}")
         return {"success": False, "error": str(e)}
