@@ -1,26 +1,36 @@
-# backend/lambdas/finanzas_dashboard/carga_postgres_handler.py
 import os
 import json
-import pg8000.dbapi
+import pg8000
 
-_db_connection = None
+_db_connection_excel = None
 
-def obtener_conexion_db():
-    global _db_connection
-    print(_db_connection)
-    if _db_connection and not _db_connection.is_closed: 
-        return _db_connection
+def obtener_conexion_db_excel():
+    """
+    [OPCIÓN B GLOBALS] Conecta la inyección relacional masiva de forma interna
+    usando las variables inyectadas de forma nativa por tu cabecera central.
+    Cero strings en duro, cero time-outs por falta de internet.
+    """
+    global _db_connection_excel
+    if _db_connection_excel and not _db_connection_excel.is_closed: 
+        return _db_connection_excel
         
-    _db_connection = pg8000.dbapi.connect(
-        host=os.environ.get('DB_HOST'),
-        database=os.environ.get('DB_NAME'),
-        user=os.environ.get('DB_USER'),
-        password=os.environ.get('DB_PASSWORD'),
-        port=int(os.environ.get('DB_PORT', 5432)),
-        timeout=5 # Timeout de socket en segundos
-    )
+    # Succión exacta de las llaves de tu template Globals (¡Cero nombres inventados!)
+    db_host_real = os.environ.get('DB_HOST_PARAM')
+    db_port_str  = os.environ.get('DB_PORT')
+    db_user      = os.environ.get('DB_USER')
+    db_name      = os.environ.get('DB_NAME')
+    db_password  = os.environ.get('DB_PASSWORD')
     
-    return _db_connection
+    print(f"🔌 [Carga Excel] Abriendo socket TCP interno dentro de la VPC privada: {db_host_real}:{db_port_str}")
+    _db_connection_excel = pg8000.connect(
+        host=db_host_real,
+        port=int(db_port_str),
+        user=db_user,
+        database=db_name,
+        password=db_password,
+        timeout=5 # Timeout de socket protector en segundos
+    )
+    return _db_connection_excel
 
 def handler(event, context):
     try:
@@ -28,24 +38,21 @@ def handler(event, context):
         tenant_id = payload_parser.get('tenant_id')
         facturas = payload_parser.get('facturas', [])
 
-        print(f"Microservicio Postgres v3 activado. Procesando inyección para el tenant: [{tenant_id}]")
+        print(f"🚀 CargaExcelLambda activada [Opción B Sincronizada]. Procesando lote para Tenant: {tenant_id}")
 
         facturas_a_insertar = []
         for row in facturas:
-            # 🚀 SOLUCIÓN REINA: Forzamos el mapeo usando las llaves del SAT en minúsculas 
-            # sincronizadas de forma exacta con la salida limpia que generó el ParserS3Lambda
             uuid = str(row.get('folio fiscal', row.get('folio_fiscal', ''))).strip()
             if not uuid or uuid == 'None' or uuid == '': 
                 continue
 
             fecha_str = str(row.get('fecha y hora timbrado', row.get('fecha_hora_timbrado', '1970-01-01 00:00:00')))
 
-            # Limpiador polimórfico de importes monetarios ($11.553,70 -> 11553.70)
+            # Limpiador de importes monetarios avanzados ($11.553,70 -> 11553.70)
             def safe_float(val):
                 if val is None: return 0.0
                 try:
                     val_str = str(val).strip().replace('$', '')
-                    # Si el formato viene con puntos en miles y comas en centavos
                     if ',' in val_str and '.' in val_str:
                         val_str = val_str.replace('.', '').replace(',', '.')
                     elif ',' in val_str and '.' not in val_str:
@@ -54,19 +61,19 @@ def handler(event, context):
                 except:
                     return 0.0
 
-            # Estructuración exacta de la tupla relacional
+            # 🚀 REPARACIÓN REINA: Se extirpa str(row.get('folio', '')) de la segunda posición
+            # La tupla ahora mide exactamente 26 columnas relacionales purificadas para hacer match
             facturas_a_insertar.append((
                 tenant_id, 
-                str(row.get('folio', '')), 
                 fecha_str,
                 str(row.get('rfc emisor', '')).upper().strip(), 
                 str(row.get('nombre emisor', '')),
                 str(row.get('rfc receptor', '')).upper().strip(), 
                 str(row.get('nombre receptor', '')),
-                str(row.get('descripcion', '')),
+                str(row.get('descripcion', '')), 
                 safe_float(row.get('sub total')), 
                 safe_float(row.get('total impuestos trasladados iva', row.get('total_iva', 0.0))), 
-                safe_float(row.get('total')),
+                safe_float(row.get('total')), 
                 str(row.get('forma pago', '')), 
                 str(row.get('metodo pago', '')), 
                 str(row.get('moneda', 'MXN')),
@@ -84,17 +91,18 @@ def handler(event, context):
                 str(row.get('no certificado sat', '')), 
                 str(row.get('sello sat', ''))
             ))
-        print(f"✅ Preparación completa: {len(facturas_a_insertar)} transacciones monetarias purificadas listas para Postgres.")
+
+        print(f"✅ Tupla purificada: {len(facturas_a_insertar)} transacciones monetarias listas para Postgres.")
+
         if facturas_a_insertar:
-            print("🔗 Estableciendo conexión segura con la base de datos Postgres..." )
-            conn = obtener_conexion_db()
+            conn = obtener_conexion_db_excel()
             cursor = conn.cursor()
-            print("🛡️ Conexión establecida. Iniciando inyección de datos históricos del SAT a Postgres..."  )
             
-            # 🚀 CORRECCIÓN DE COLUMNA: Cambiamos no_certified_sat por no_certificado_sat
+            # 🚀 REPARACIÓN REINA: Se borra la palabra 'folio' y su respectivo '%s'
+            # La query ahora abraza simétricamente las 26 columnas físicas existentes de tu base relacional
             query_upsert = """
                 INSERT INTO facturas_sat (
-                    tenant_id, folio, fecha_hora_timbrado, rfc_emisor, nombre_emisor, 
+                    tenant_id, fecha_hora_timbrado, rfc_emisor, nombre_emisor, 
                     rfc_receptor, nombre_receptor, descripcion, sub_total, total_iva, 
                     total, forma_pago, metodo_pago, moneda, regimen_fiscal_receptor, 
                     domicilio_fiscal_receptor, serie, uso_cfdi, clave_prod_serv, cantidad, 
@@ -103,17 +111,17 @@ def handler(event, context):
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                    %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (tenant_id, folio_fiscal_uuid) DO NOTHING;
             """
-
-            print(f"🧹 Inyectando en lote {len(facturas_a_insertar)} transacciones monetarias purificadas a Postgres...")
+            
+            print(f"🧹 Indexando lote masivo de {len(facturas_a_insertar)} CFDIs en PostgreSQL...")
             cursor.executemany(query_upsert, facturas_a_insertar)
             conn.commit()
             cursor.close()
             conn.close()
-            print("💾 Datos históricos del SAT indexados con montos reales de forma exitosa.")
+            print("💾 Datos históricos del SAT vaciados con éxito y montos validados.")
 
         return {"success": True, "count": len(facturas_a_insertar)}
     except Exception as e:
