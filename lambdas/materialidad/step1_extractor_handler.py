@@ -43,14 +43,19 @@ def handler(event, context):
     contrato = event.get('contrato')
     tipo_flujo = event.get('tipo_flujo', 'PREVENTIVO')
 
-    # Succionamos el nombre de la tabla NoSQL inyectado localmente
+    # Succionamos el nombre de la tabla NoSQL inyectado localmente de tus Globals
     nombre_tabla_nosql = os.environ.get('DYNAMODB_TABLE')
     table = dynamodb.Table(nombre_tabla_nosql)
+    
+    # Estructuramos la clave compuesta anual inmutable de Veritas
     hash_key = f"{tenant_id}#{rfc_cliente}#{contrato}#{ano_fiscal}"
 
     # 📊 UX SYNCHRONIZER: Dejamos pre-firmado el progreso en la Main Table de DynamoDB
+    # 🚀 REPARACIÓN REINA: Sincronizamos el nombre de la Hash Key exacta 'tenant_rfc'
     table.update_item(
-        Key={'tenant_rfc_year_contract': hash_key},
+        Key={
+            'tenant_rfc': hash_key # <- Cambiado para hacer match con database-infra.yml
+        },
         UpdateExpression="SET progreso_porcentaje = :p, mensaje_progreso = :m, estatus_global = :e",
         ExpressionAttributeValues={
             ':p': 25, 
