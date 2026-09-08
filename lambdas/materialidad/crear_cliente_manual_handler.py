@@ -99,33 +99,26 @@ def handler(event, context):
         conn = obtener_conexion_db()
         cursor = conn.cursor()
 
-        # Evitamos la violación Not-Null de TablePlus inyectando un folio sintético manual
-        folio_manual_uuid = f"MANUAL-{str(uuid.uuid4()).upper()}"
+        # 🚀 SOLUCIÓN REINA: Recortamos el prefijo para lograr exactamente 40 caracteres (4 + 36)
+        # Esto es 100% compatible con tu columna 'character varying(40)' de la base de datos
+        folio_manual_uuid = f"MAN-{str(uuid.uuid4()).upper()}"
 
         # Sincronización exacta: 10 columnas declaradas = 10 valores inyectados
         query_insert = """
             INSERT INTO facturas_sat (
-                tenant_id,
-                rfc_emisor,
-                rfc_receptor,
-                nombre_receptor,
-                folio_fiscal_uuid,
-                fecha_hora_timbrado,
-                sub_total,
-                total_iva,
-                total,
-                tipo_de_comprobante
+                tenant_id, rfc_emisor, rfc_receptor, nombre_receptor, folio_fiscal_uuid,   
+                fecha_hora_timbrado, sub_total, total_iva, total, tipo_de_comprobante  
             ) VALUES (
                 %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 0.00, 0.00, 0.00, 'I'
             );
         """
         
         cursor.execute(query_insert, (
-            tenant_id,                         # 1. %s -> tenant_id
-            bufete_rfc.upper().strip(),        # 2. %s -> rfc_emisor
-            rfc,                               # 3. %s -> rfc_receptor
-            nombre,                            # 4. %s -> nombre_receptor
-            folio_manual_uuid                  # 5. %s -> folio_fiscal_uuid
+            tenant_id,                         
+            bufete_rfc.upper().strip(),        
+            rfc,                               
+            nombre,                            
+            folio_manual_uuid                  # 🎯 Entra con longitud matemática de 40 fija
         ))
         
         conn.commit()
