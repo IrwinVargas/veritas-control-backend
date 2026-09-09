@@ -1,11 +1,9 @@
-# lambdas/materialidad/step2_redactor_handler.py
 import os
 import json
 import boto3
 
 bedrock_client = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
-# 🏛️ MATRIZ DE ESPECIALIDAD JURÍDICA: Define los entregables específicos exigidos por el SAT
 DICCIONARIO_ESPECIALIDAD_SAT = {
     "DESARROLLO_TECNOLOGICO": {
         "entregables_obligatorios": [
@@ -37,27 +35,30 @@ DICCIONARIO_ESPECIALIDAD_SAT = {
 }
 
 def handler(event, context):
-    print("🤖 Paso 2 Activo: Invocando la inteligencia forense de Amazon Bedrock con Especialidad...")
+    print("🤖 Paso 2 Activo: Invocando la inteligencia forense de Amazon Bedrock...")
     
     nombre_cliente = event.get('nombre_cliente', 'El Contribuyente')
     rfc_cliente = event.get('rfc_cliente', '')
     contrato_tipo = event.get('contrato', 'PRESTACION_SERVICIOS')
     ano_fiscal = event.get('ano_fiscal', '2026')
-    conceptos_sat_crudos = event.get('string_catalogo_ia', 'Servicios administrativos corporativos')
+    
+    conceptos_sat_crudos = event.get('string_catalogo_ia', '')
+    if not conceptos_sat_crudos and 'step1_output' in event:
+        conceptos_sat_crudos = event.get('step1_output', {}).get('string_catalogo_ia', '')
+        
+    if not conceptos_sat_crudos:
+        conceptos_sat_crudos = "Servicios administrativos corporativos y de asesoría fiscal integral"
 
-    # 🚀 SUCCIÓN DE MATRIZ DILIGENTE: Extraemos los requisitos del servicio o cargamos un fallback noble
     especialidad = DICCIONARIO_ESPECIALIDAD_SAT.get(
         contrato_tipo, 
         {
             "entregables_obligatorios": ["Reportes mensuales de actividades", "Minutas de control", "Entregables digitales estándar"],
-            "enfoque_sustancia": "Demostrar la ejecución real del servicio mediante entregables lógicos y trazables."
+            "enfoque_sustancia": "Demostrar la ejecución real del servicio mediante entregables lógicos, medibles y trazables."
         }
     )
 
-    # Convertimos los entregables obligatorios en un string estructurado para el prompt
     entregables_str = "\n- ".join(especialidad["entregables_obligatorios"])
 
-    # 🛡️ PROMPT FORENSE RE-CALIBRADO CON MÁXIMA ESPECIFICACIÓN ANTI-SIMULACIÓN (ART. 69-B)
     prompt_forense = f"""
     Actúa como un Perito Fiscal Mexicano de Élite y un Abogado Defensor experto en el Artículo 69-B del CFF.
     Redacta la sección 'SEGUNDO. DEFECTOLOGÍA OPERATIVA Y ENTREGABLES ESPECIALIZADOS' para un expediente de materialidad inatacable.
@@ -75,7 +76,7 @@ def handler(event, context):
     - {entregables_str}
     
     REQUISITOS DE REDACCIÓN (ESTRICTOS):
-    1. Debe ser denso, de alta prosa jurídica, formal y exhaustivo. Explica mecánicamente cómo se ejecutaron, supervisaron y custodiaron estos entregables específicos.
+    1. Debe ser denso, de alta prosa jurídica, formal y exhaustivo. Explica mecánicamente cómo se ejecutaron, supervisaron y custodiaron estos entregables específicos. Genera mínimo 4 párrafos largos de argumentación pericial.
     2. Cita los archivos de especialidad listados arriba, demostrando de forma inatacable que no existe simulación de actos y que la infraestructura técnica/humana del proveedor coincide perfectamente con el volumen del servicio.
     3. Justifica el flujo transaccional de los entregables para cerrar cualquier brecha de duda ante el SAT.
     
@@ -85,27 +86,31 @@ def handler(event, context):
     body_request = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 4000,
-        "temperature": 0.2, # Latencia baja y máxima precisión técnica sin alucinaciones
+        "temperature": 0.2,
         "messages": [
             {"role": "user", "content": prompt_forense}
         ]
     })
 
     try:
+        model_id_real = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        
+        print(f"📡 Transmitiendo Prompt pericial forense hacia el modelo: {model_id_real}")
         response = bedrock_client.invoke_model(
-            modelId="anthropic.claude-3-5-haiku-20241022-v1:0",
+            modelId=model_id_real,
             contentType="application/json",
             accept="application/json",
             body=body_request
         )
         
         response_body = json.loads(response.get('body').read())
-        texto_pericial_generado = response_body['content']['text']
-        print("✅ Tesis de materialidad especializada redactada con éxito por Bedrock.")
+        texto_pericial_generado = response_body['content'][0]['text']
+        
+        print("✅ Tesis de materialidad especializada redactada con éxito por Claude 4.5 en Bedrock.")
         event['texto_pericial'] = texto_pericial_generado
         
     except Exception as e:
-        print(f"❌ Error invocando Bedrock: {str(e)}")
-        event['texto_pericial'] = f"<b>SEGUNDO. CERTIFICACIÓN DE OPERACIONES.</b> Se ratifica la materialidad de las operaciones relativas a {conceptos_sat_crudos} para el ejercicio {ano_fiscal}."
+        print(f"❌ Error crítico invocando Bedrock Real: {str(e)}")
+        event['texto_pericial'] = None # Forzamos que caiga en el paracaídas extendido del Paso 3
 
     return event
