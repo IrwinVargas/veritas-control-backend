@@ -62,6 +62,25 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
+
+  VeritasNotificacionesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'veritas-control-notificaciones-${Environment}'
+      BillingMode: PAY_PER_REQUEST # Escalabilidad elástica a costo cero si no hay tráfico
+      AttributeDefinitions:
+        - AttributeName: tenant_id
+          AttributeType: S
+        - AttributeName: notificacion_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenant_id
+          KeyType: HASH        # Partición Multi-Tenant
+        - AttributeName: notificacion_id
+          KeyType: RANGE       # Ordenación por ID Único Cronológico
+      TimeToLiveSpecification:
+        AttributeName: fecha_expiracion
+        Enabled: true
   
   VeritasDbSubnetGroupV2:
     Type: AWS::RDS::DBSubnetGroup
@@ -111,3 +130,10 @@ Resources:
       Type: String
       Value: !GetAtt VeritasPostgresDB.MasterUserSecret.SecretArn
       Description: "ARN del secreto administrado por AWS para VeritasPostgresDB"
+
+  ParamVeritasNotificacionesTable:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/dynamo/notificaciones-table-name'
+      Type: String
+      Value: !Ref VeritasNotificacionesTable

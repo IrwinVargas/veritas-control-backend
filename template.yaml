@@ -688,7 +688,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: "aws_proxy"
                 httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuditoriaListaNegraLambda.Arn}/invocations'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NotificacionesHistorialLambda.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '200': { description: "Estatus recuperado en 2ms." }
@@ -731,7 +731,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: "aws_proxy"
                 httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrearClienteManualLambda.Arn}/invocations'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NotificacionesModificarLambda.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '201': { description: "Cliente creado." }
@@ -1595,6 +1595,46 @@ Resources:
         # 🚀 SOLUCIÓN REINA ESTRATÉGICA: S3CrudPolicy unificado con nomenclatura nativa de SAM
         - S3CrudPolicy:
             BucketName: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
+  
+  NotificacionesHistorialLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-notif-historial-${Environment}'
+      Handler: historial_handler.handler
+      CodeUri: ./lambdas/notificaciones/
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          NOTIFICACIONES_TABLE: !Sub '/veritas-control/${Environment}/dynamo/notificaciones-table-name'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /notificaciones/historial
+            Method: get
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
+
+  NotificacionesModificarLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'veritas-control-notif-leer-${Environment}'
+      Handler: leer_handler.handler
+      CodeUri: ./lambdas/notificaciones/
+      Role: !GetAtt VeritasLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          NOTIFICACIONES_TABLE: !Sub '/veritas-control/${Environment}/dynamo/notificaciones-table-name'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /notificaciones/leer
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.10
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket
