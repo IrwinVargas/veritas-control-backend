@@ -98,29 +98,13 @@ def handler(event, context):
     contrato = event.get('contrato', 'DESARROLLO_TECNOLOGICO')
     
     # Succionamos los payloads asíncronos de la Step Function
-    texto_ia_crudo = event.get('texto_pericial', '').strip()
-    conceptos_sat_crudos = event.get('string_catalogo_ia', '').strip()
+    texto_ia_crudo = event.get('texto_pericial', '')
+    if not texto_ia_crudo and 'step2_output' in event:
+        texto_ia_crudo = event.get('step2_output', {}).get('texto_pericial', '')
 
-    # 🚀 REPARACIÓN REINA: Si el orquestador asíncrono evaporó las variables de red,
-    # el paracaídas inyecta una tesis de defensa densa en caliente para evitar PDFs vacíos
-    if not conceptos_sat_crudos or conceptos_sat_crudos == 'None':
-        conceptos_sat_crudos = "SERVICIOS DE MAQUILA, LIMPIEZA INDUSTRIAL Y LOGÍSTICA CORPORATIVA ESPECIALIZADA"
-
-    if not texto_ia_crudo or texto_ia_crudo == 'None' or len(texto_ia_crudo) < 50:
-        print("⚠️ Advertencia: Payload pericial nulo detectado. Inyectando Tesis de Contingencia Anti-SAT...")
-        texto_ia_crudo = f"""
-        <b>PRIMERO. OBJETO INDISPENSABLE DEL ACTO JURÍDICO.</b><br/>
-        Las operaciones celebradas entre las partes relativas a <b>{conceptos_sat_crudos}</b> durante el ejercicio fiscal <b>{ano_fiscal}</b>, obedecieron a una necesidad comercial real, solemne e indispensable para el objeto social del contribuyente, descartando cualquier supuesto de simulación de actos jurídicos contemplados en el Artículo 69-B del Código Fiscal de la Federación.<br/><br/>
-        
-        <b>SEGUNDO. INFRAESTRUCTURA TÉCNICA Y OPERATIVA REAL.</b><br/>
-        Se certifica que el prestador del servicio aportó los recursos humanos directos, herramientas mecánicas, uniformes geolocalizados y supervisores periciales necesarios para el desarrollo del servicio. Las bitácoras de asistencia validadas por biométricos y resguardadas de forma física y digital demuestran la sustancia elástica y la simetría entre el volumen facturado y la capacidad instalada.<br/><br/>
-        
-        <b>TERCERO. ENTREGABLES DE ESPECIALIDAD PERICIAL.</b><br/>
-        Los reportes mensuales de actividades, reportes fotográficos con metadatos de coordenadas inmutables y las minutas de supervisión de juntas operativas fueron entregados y validados en tiempo y forma, constituyendo la prueba reina de la materialidad existencial de las transacciones.<br/><br/>
-        
-        <b>CUARTO. CONCLUSIÓN FORENSE LEGAL.</b><br/>
-        Por lo tanto, se concluye con un grado de certeza absoluta que las erogaciones realizadas son deducibles para el Impuesto Sobre la Renta (ISR) y el Impuesto al Valor Agregado (IVA) es plenamente acreditable, al estar soportados con el búnker pericial de inmutabilidad digital de Veritas Control.
-        """
+    conceptos_sat_crudos = event.get('string_catalogo_ia', '')
+    if not conceptos_sat_crudos and 'step1_output' in event:
+        conceptos_sat_crudos = event.get('step1_output', {}).get('string_catalogo_ia', '')
 
     bucket_name = os.environ.get('BUCKET_NAME') or "veritas-control-materialidad-dev"
     

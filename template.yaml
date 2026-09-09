@@ -1569,11 +1569,13 @@ Resources:
             "ExtraerDatos": {
               "Type": "Task",
               "Resource": "${MaterialidadExtractorPostgresLambda.Arn}",
+              "ResultPath": "$.step1_output"
               "Next": "GenerarTextoIA"
             },
             "GenerarTextoIA": {
               "Type": "Task",
               "Resource": "${MaterialidadRedactorBedrockLambda.Arn}",
+              "ResultPath": "$.step2_output"
               "Next": "EsculpirPDF"
             },
             "EsculpirPDF": {
