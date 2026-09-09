@@ -119,37 +119,46 @@ def handler(event, context):
 
         cursor.close()
         conn.close()
-        print(f"💾 Éxito Absoluto: {conteo_exito} EFOS integrados en la base relacional.")
+        print(f"💾 Éxito Absoluto: {conteo_exito} empresas indexadas en la lista negra relacional.")
 
         # =========================================================================
-        # 🔔 SEMBRADO DE NOTIFICACIÓN DE ÉXITO EN EL DROPDOWN NoSQL
+        # 🚀 REPARACIÓN REINA: EXTRACCIÓN DINÁMICA MULTI-TENANT (SINO ESTÁTICO)
+        # Extraemos el tenant_id real analizando la ruta (Object Key) del archivo en S3
+        # Ejemplo de ruta: "notificaciones/bufete-veritas-dev-1234/Listado_completo_69-B.csv"
         # =========================================================================
         try:
-            print("🔔 Inyectando empuje de éxito de listas negras en DynamoDB...")
+            print("🔔 Insertando alerta de auditoría de Listas Negras en el búnker NoSQL...")
+            partes_ruta = object_key.split('/')
+            
+            # Paracaídas: Si la ruta tiene carpetas, el segundo nodo es el Tenant real.
+            # Si viene suelto en la raíz, usamos tu fallback contractual de desarrollo.
+            tenant_dinamico = partes_ruta[1] if len(partes_ruta) > 2 else "bufete-veritas-uuid-1111"
+            
+            print(f"🎯 Partición Multi-Tenant localizada con éxito: [{tenant_dinamico}]")
+            
             dynamodb_notif = boto3.resource('dynamodb')
-            tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', 'veritas-control-notificaciones-dev')
+            tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', "veritas-control-notificaciones-dev")
             table_notif = dynamodb_notif.Table(tabla_notif_name)
             
             fecha_actual_unix = int(datetime.utcnow().timestamp())
             ttl_10_dias = fecha_actual_unix + (10 * 24 * 60 * 60)
             id_alerta = f"NOTIF-69B-{str(uuid.uuid4())[:8].upper()}"
-            tenant_master = "bufete-veritas-uuid-1111"
 
             table_notif.put_item(
                 Item={
-                    'tenant_id': tenant_master,
+                    'tenant_id': tenant_dinamico,       # 🎯 Sintonizado al Tenant real de la sesión
                     'notificacion_id': id_alerta,
                     'tipo': 'SISTEMA',
-                    'titulo': '🛡️ Listas Negras Actualizadas:',
-                    'descripcion': f"Se completó la sincronización de {conteo_exito} registros del listado 69-B del SAT de forma resiliente y libre de colisiones.",
+                    'titulo': '🛡️ Validación de Artículo 69-B:',
+                    'descripcion': f"Se completó el cruce y la actualización de {conteo_exito} registros de la lista negra oficial del SAT de forma exitosa.",
                     'creado_el': datetime.utcnow().isoformat() + "Z",
                     'leido': False,
                     'fecha_expiracion': ttl_10_dias
                 }
             )
-            print("🎯 Push perimetral sembrado con éxito en DynamoDB.")
+            print(f"✅ Alerta de auditoría sembrada exitosamente para el Tenant [{tenant_dinamico}].")
         except Exception as e_notif:
-            print(f"⚠️ Alerta: Error sembrando push NoSQL: {str(e_notif)}")
+            print(f"⚠️ Alerta: Error sembrando push de listas negras: {str(e_notif)}")
 
         return {"success": True, "registros_sincronizados": conteo_exito}
         

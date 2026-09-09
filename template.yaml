@@ -788,7 +788,7 @@ Resources:
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
           DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
-          DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
+          NOTIFICACIONES_TABLE: !Sub 'veritas-control-notificaciones-${Environment}'
       Policies:
         - Statement:
             - Effect: Allow
