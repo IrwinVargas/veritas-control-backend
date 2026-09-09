@@ -103,8 +103,43 @@ def handler(event, context):
 
         cursor.close()
         conn.close()
-        
-        print(f"💾 Éxito Absoluto: Sincronización finalizada. {conteo_exito} empresas indexadas en la lista negra relacional.")
+        print(f"💾 Éxito Absoluto: {conteo_exito} empresas indexadas en la lista negra relacional.")
+
+        # =========================================================================
+        # 🚀 GATILLO DE NOTIFICACIÓN REAL: CRUCE DE EFOS COMPLETADO
+        # =========================================================================
+        try:
+            print("🔔 Insertando alerta de auditoría de Listas Negras en el búnker NoSQL...")
+            import uuid
+            from datetime import datetime
+            
+            dynamodb_notif = boto3.resource('dynamodb')
+            tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', f"veritas-control-notificaciones-dev")
+            table_notif = dynamodb_notif.Table(tabla_notif_name)
+            
+            fecha_actual_unix = int(datetime.utcnow().timestamp())
+            ttl_10_dias = fecha_actual_unix + (10 * 24 * 60 * 60)
+            id_alerta = f"NOTIF-69B-{str(uuid.uuid4())[:8].upper()}"
+            
+            # Simulamos el tenant o bufete que detonó la descarga global del SAT
+            tenant_master = "bufete-veritas-uuid-1111" 
+
+            table_notif.put_item(
+                Item={
+                    'tenant_id': tenant_master,
+                    'notificacion_id': id_alerta,
+                    'tipo': 'SISTEMA',
+                    'titulo': '🛡️ Validación de Artículo 69-B:',
+                    'descripcion': f"Se completó el cruce y la actualización de {conteo_exito} registros de la lista negra oficial del SAT de forma exitosa.",
+                    'creado_el': datetime.utcnow().isoformat() + "Z",
+                    'leido': False,
+                    'fecha_expiracion': ttl_10_dias
+                }
+            )
+            print("🎯 Alerta de auditoría sembrada exitosamente.")
+        except Exception as e_notif:
+            print(f"⚠️ Alerta: Error sembrando push de listas negras: {str(e_notif)}")
+
         return {"success": True, "registros_sincronizados": conteo_exito}
         
     except Exception as e:

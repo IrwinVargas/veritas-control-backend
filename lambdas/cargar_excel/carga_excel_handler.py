@@ -2,6 +2,8 @@
 import os
 import json
 import pg8000
+import boto3
+from datetime import datetime
 
 _db_connection_excel = None
 
@@ -124,6 +126,36 @@ def handler(event, context):
             cursor.close()
             conn.close()
             print("💾 Datos históricos del SAT vaciados con éxito y montos validados.")
+            
+            try:
+                print("🔔 Insertando alerta de procesamiento de Excel en DynamoDB...")
+                dynamodb_notif = boto3.resource('dynamodb')
+                # Recuerda inyectar NOTIFICACIONES_TABLE como variable de entorno en este recurso de SAM si aplica
+                tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', f"veritas-control-notificaciones-dev")
+                table_notif = dynamodb_notif.Table(tabla_notif_name)
+                
+                # Matemáticas exactas de expiración: Fecha actual Unix + 10 días exactos en segundos
+                fecha_actual_unix = int(datetime.utcnow().timestamp())
+                ttl_10_dias = fecha_actual_unix + (10 * 24 * 60 * 60) # 864,000 segundos fijos
+
+                import uuid
+                id_alerta = f"NOTIF-EXCEL-{str(uuid.uuid4())[:8].upper()}"
+
+                table_notif.put_item(
+                    Item={
+                        'tenant_id': tenant_id,          # HASH Key Multi-Tenant
+                        'notificacion_id': id_alerta,    # RANGE Key Cronológica
+                        'tipo': 'SAT',
+                        'titulo': '🏛️ Carga de CFDIs Exitosa:',
+                        'descripcion': f"El archivo masivo de Excel para el RFC {tenant_id[:8]} se procesó e indexó en PostgreSQL de forma atómica.",
+                        'creado_el': datetime.utcnow().isoformat() + "Z",
+                        'leido': False,
+                        'fecha_expiracion': ttl_10_dias  # 🎯 Candado de autodestrucción automática gratuita
+                    }
+                )
+                print("🎯 Alerta sembrada con éxito en la bóveda NoSQL.")
+            except Exception as e_notif:
+                print(f"⚠️ Alerta: No se pudo sembrar la notificación en S3/Dynamo: {str(e_notif)}")
 
         return {"success": True, "count": len(facturas_a_insertar)}
     except Exception as e:
