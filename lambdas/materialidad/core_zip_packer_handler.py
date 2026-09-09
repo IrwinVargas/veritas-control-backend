@@ -47,28 +47,45 @@ def handler(event, context):
             for page in pages:
                 for obj in page.get('Contents', []):
                     s3_key = obj['Key']
-                    if s3_key.endswith('/'): # Ignoramos carpetas virtuales vacías
+                    if s3_key.endswith('/'): # Ignoramos carpetas virtuales vacías de S3
                         continue
                     
                     archivos_encontrados += 1
                     print(f"📥 Descargando insumo para empaquetar: {s3_key}")
                     obj_bytes = s3_client.get_object(Bucket=bucket_name, Key=s3_key)['Body'].read()
                     
-                    # 📐 MAPEO MAPA INTELECTUAL: Traducimos las rutas de S3 a la fisonomía estricta anti-SAT
-                    # Re-acomodamos los bytes dinámicamente según el tipo de documento detectado
                     nombre_archivo = os.path.basename(s3_key)
-                    ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/03_EVIDENCIA_MATERIALIDAD/Entregables_y_Reportes/{nombre_archivo}"
                     
-                    if "01 Legal" in s3_key or "Contrato" in nombre_archivo:
+                    # =========================================================================
+                    # 🚀 ENFOQUE POLIMÓRFICO: SE DETECTAN ARCHIVOS DE ESPECIALIDAD JURÍDICA
+                    # Si el key contiene la carpeta '03_Especialidad', respeta su subestructura dinámica
+                    # =========================================================================
+                    if "03_Especialidad" in s3_key:
+                        partes_ruta = s3_key.split('/')
+                        # Extraemos el nombre del entregable específico (ej. "03_Especialidad_TI" o "03_Especialidad_Transporte")
+                        nodo_especialidad = [p for p in partes_ruta if "03_Especialidad" in p][0]
+                        ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/03_EVIDENCIA_MATERIALIDAD/{nodo_especialidad}/{nombre_archivo}"
+                    
+                    # =========================================================================
+                    # 📐 MAPEO TRADICIONAL JURÍDICO: Clasificación por patrones de nombres base
+                    # =========================================================================
+                    elif "01 Legal" in s3_key or "Contrato" in nombre_archivo:
                         ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/01_LEGAL_Y_CONSTITUTIVO/{nombre_archivo}"
+                        
                     elif "02 Cumplimiento" in s3_key or "Opinion" in nombre_archivo or "Constancia" in nombre_archivo:
                         ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/02_CUMPLIMIENTO_FISCAL/{nombre_archivo}"
+                        
                     elif "Evidencia_Fotografica" in s3_key or "foto" in nombre_archivo.lower() or "mail" in nombre_archivo.lower():
                         ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/03_EVIDENCIA_MATERIALIDAD/Evidencia_Fotografica_y_Digital/{nombre_archivo}"
+                        
                     elif "04 Comprobacion" in s3_key or nombre_archivo.endswith('.xml') or "Factura" in nombre_archivo:
                         ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/04_COMPROBACION_FINANCIERA/{nombre_archivo}"
+                    
+                    else:
+                        # Fallback de seguridad para no perder hilos de entregables sueltos
+                        ruta_dentro_del_zip = f"EXPEDIENTE_DIGITAL_{rfc_cliente}/03_EVIDENCIA_MATERIALIDAD/Entregables_y_Reportes/{nombre_archivo}"
 
-                    # Inyectamos el archivo en la estructura pericial correspondiente
+                    # Inyectamos el archivo en la fisonomía exacta del búnker pericial
                     zip_file.writestr(ruta_dentro_del_zip, obj_bytes)
 
             # Si el expediente está vacío, metemos un README de cortesía para no romper el zip
