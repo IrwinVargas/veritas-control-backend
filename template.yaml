@@ -1543,6 +1543,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
+          BUCKET_NAME: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
       Policies:
         # 🚀 SOLUCIÓN REINA ESTRATÉGICA: Colocamos el nombre de bucket nominal estático dev de SAM
         # Esto es 100% legal para S3CrudPolicy y disuelve el error de "No export found" en 2ms
