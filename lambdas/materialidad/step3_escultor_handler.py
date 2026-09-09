@@ -132,6 +132,31 @@ def handler(event, context):
     # 🎯 CONSTRUCCIÓN FINAL VINCULADA A TU CANVAS MAESTRO:
     # SAM invocará este CanvaMaker vectorizado con los trapecios bronce y azul marino
     doc.build(story, canvasmaker=CanvasPapelMembretadoVeritas)
+    print("🎨 Estructura geométrica del PDF renderizada en la RAM del contenedor.")
+
+    # =========================================================================
+    # 🚀 LA REPARACIÓN REINA: REBOBINAMOS EL CURSOR AL PUNTO CERO (ORIGEN)
+    # Sin esta línea, boto3 lee un string vacío y S3 se queda en blanco de por vida.
+    # =========================================================================
+    pdf_buffer.seek(0)
     
-    print("🎯 PDF Esculpido de forma exitosa y guardado en S3.")
-    return {"status": "FINISHED"}
+    # Extraemos los bytes puros ya rebobinados desde el inicio
+    pdf_bytes_reales = pdf_buffer.getvalue()
+    print(f"📦 Tamaño real del PDF pericial a inyectar: {len(pdf_bytes_reales)} bytes.")
+
+    # Nombre dinámico inmutable para tu búnker de S3 multi-tenant
+    s3_key_pdf = f"{tenant_id}/{rfc_cliente}/{ano_fiscal}/{contrato}/Contrato_Prestacion_Servicios_Firmado.pdf"
+
+    print(f"💾 Transmitiendo PDF definitivo de forma interna hacia S3: {bucket_name}/{s3_key_pdf}")
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=s3_key_pdf,
+        Body=pdf_bytes_reales, # 🎯 Entran los bytes reales de forma simétrica
+        ContentType='application/pdf'
+    )
+    
+    # Liberamos la memoria de la RAM para mantener el performance en microsegundos limpios
+    pdf_buffer.close()
+
+    print("🎯 ¡Búnker de materialidad consolidado con éxito físico real en Amazon S3!")
+    return {"status": "FINISHED", "s3_key": s3_key_pdf}
