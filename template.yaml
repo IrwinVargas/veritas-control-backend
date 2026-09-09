@@ -1606,7 +1606,7 @@ Resources:
       Role: !GetAtt VeritasLambdaExecutionRole.Arn
       Environment:
         Variables:
-          NOTIFICACIONES_TABLE: !Sub '/veritas-control/${Environment}/dynamo/notificaciones-table-name'
+          NOTIFICACIONES_TABLE: !Sub 'veritas-control-notificaciones-${Environment}'
       Events:
         ApiEvent:
           Type: Api

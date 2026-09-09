@@ -20,7 +20,7 @@ def handler(event, context):
     try:
         authorizer = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
         tenant_id = authorizer.get('custom:tenant_id', 'bufete-veritas-uuid-1111')
-
+        print(f"🔑 Tenant de sesión detectado: [{tenant_id}]")
         nombre_tabla = os.environ.get('NOTIFICACIONES_TABLE', 'veritas-control-notificaciones-dev')
         table = dynamodb.Table(nombre_tabla)
 
