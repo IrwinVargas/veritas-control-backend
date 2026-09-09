@@ -1568,19 +1568,20 @@ Resources:
           "States": {
             "ExtraerDatos": {
               "Type": "Task",
-              "Resource": "${MaterialidadExtractorPostgresLambda.Arn}",
-              "ResultPath": "$.step1_output"
+              "Resource": "arn:aws:lambda:us-east-1:049255850526:function:veritas-control-mat-step1-extractor-dev",
+              "ResultPath": "$.step1_output",
               "Next": "GenerarTextoIA"
             },
             "GenerarTextoIA": {
               "Type": "Task",
-              "Resource": "${MaterialidadRedactorBedrockLambda.Arn}",
-              "ResultPath": "$.step2_output"
+              "Resource": "arn:aws:lambda:us-east-1:049255850526:function:veritas-control-mat-step2-redactor-dev",
+              "ResultPath": "$.step2_output",
               "Next": "EsculpirPDF"
             },
             "EsculpirPDF": {
               "Type": "Task",
-              "Resource": "${MaterialidadEscultorReportLabLambda.Arn}",
+              "Resource": "arn:aws:lambda:us-east-1:049255850526:function:veritas-control-mat-step3-escultor-dev",
+              "ResultPath": "$.step3_output",
               "End": true
             }
           }
