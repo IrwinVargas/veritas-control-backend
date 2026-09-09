@@ -680,6 +680,91 @@ Resources:
                     responseTemplates:
                       application/json: ""
                 passthroughBehavior: "when_no_match"
+          /notificaciones/historial:
+            get:
+              summary: "Consultar lista negra del sat"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuditoriaListaNegraLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '200': { description: "Estatus recuperado en 2ms." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
+
+          /notificaciones/leer:
+            post:
+              summary: "Crear cliente de manera manual"
+              security:
+                - CognitoAuthorizer: []
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                httpMethod: "POST"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CrearClienteManualLambda.Arn}/invocations'
+                passthroughBehavior: "when_no_match"
+              responses:
+                '201': { description: "Cliente creado." }
+            options:
+              summary: "CORS Metricas"
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                '200':
+                  description: "CORS Preflight exitoso"
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                type: "mock"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                    responseTemplates:
+                      application/json: ""
+                passthroughBehavior: "when_no_match"
   # =========================================================================
   # RECURSOS DE COMPUTO (LAMBDA)
   # =====================================================================
