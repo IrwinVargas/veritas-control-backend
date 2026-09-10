@@ -1695,7 +1695,7 @@ Resources:
         Variables:
           # 🔌 Llavero de variables inmutables de red resueltas por SAM:
           NOTIFICACIONES_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
-          MATERIALIDAD_STATE_MACHINE_ARN: !Ref PipelineMaterialidadStateMachine
+          MATERIALIDAD_STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
       Events:
         ApiEvent:
           Type: Api
