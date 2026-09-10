@@ -138,12 +138,48 @@ def handler(event, context):
     story.append(Spacer(1, 10))
     
     # Desglosamos e inyectamos los párrafos robustos
-    for fragmento in texto_ia_crudo.split('\n'):
+    texto_ia_limpio = texto_ia_crudo.replace("```html", "").replace("```", "").strip()
+    
+    # Desglosamos e inyectamos los párrafos robustos purificados
+    for fragmento in texto_ia_limpio.split('\n'):
         if fragmento.strip():
             story.append(Paragraph(fragmento.strip(), style_legal_body))
             
-    # Construcción final acoplada a tus trapecios vectoriales bronce
+    story.append(Spacer(1, 30))
+            
+    style_firma_linea = ParagraphStyle(
+        'FirmaLinea', fontName='Helvetica', fontSize=9, leading=12, alignment=TA_CENTER
+    )
+    
+    col_izquierda = [
+        Spacer(1, 40),
+        Paragraph("________________________________________", style_firma_linea),
+        Spacer(1, 4),
+        Paragraph("<b>REPRESENTANTE LEGAL ASIGNADO</b>", style_firma_linea),
+        Paragraph(f"{nombre_cliente}", style_firma_linea)
+    ]
+    
+    col_derecha = [
+        Spacer(1, 40),
+        Paragraph("________________________________________", style_firma_linea),
+        Spacer(1, 4),
+        Paragraph("<b>PERITO FISCAL RESPONSABLE</b>", style_firma_linea),
+        Paragraph("BUFETE JURÍDICO VERITAS CONTROL", style_firma_linea)
+    ]
+    
+    # Encapsulamos las firmas en una tabla y usamos KeepTogether para que nunca se corten solas
+    tabla_firmas = Table([[col_izquierda, col_derecha]], colWidths=[260, 260])
+    tabla_firmas.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+    ]))
+    
+    # Forzamos que el bloque de firmas viaje compacto y no se rompa a la mitad
+    story.append(KeepTogether(tabla_firmas))
+    
+    # 🎯 CONSTRUCCIÓN FINAL VINCULADA A TU CANVAS GEOMÉTRICO:
     doc.build(story, canvasmaker=CanvasPapelMembretadoVeritas)
+    print("🎨 Estructura purificada y firmada renderizada en S3.")
     
     # Rebobinado binario milimétrico anti-0 bytes
     pdf_buffer.seek(0)
