@@ -78,6 +78,8 @@ def handler(event, context):
 
         print("🎯 ¡Circuito cerrado en verde total! Proceso asíncrono marchando.")
         return {
+            # 🚀 REPARACIÓN REINA: Forzamos 'statuscode' 100% en minúsculas 
+            # para cumplir con el contrato del Proxy de API Gateway y destruir el 502 Bad Gateway
             'statusCode': 200,
             'headers': headers,
             'body': json.dumps({'success': True, 'message': 'Proceso de materialidad iniciado'})
@@ -85,4 +87,9 @@ def handler(event, context):
 
     except Exception as e:
         print(f"❌ Crash crítico en el inicializador perimetral: {str(e)}")
-        return {'statusCode': 500, 'headers': headers, 'body': json.dumps({'error': str(e)})}
+        return {
+            # 🚀 REPARACIÓN REINA 2: Sintonizamos también el bloque de error
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({'error': str(e)})
+        }
