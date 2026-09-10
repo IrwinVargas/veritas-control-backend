@@ -765,48 +765,6 @@ Resources:
                     responseTemplates:
                       application/json: ""
                 passthroughBehavior: "when_no_match"
-          /materialidad/detonar:
-            post:
-              summary: "Crear cliente de manera manual"
-              security:
-                - CognitoAuthorizer: []
-              x-amazon-apigateway-integration:
-                type: "aws_proxy"
-                httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MaterialidadDetonarLambda.Arn}/invocations'
-                passthroughBehavior: "when_no_match"
-              responses:
-                '201': { description: "Cliente creado." }
-            options:
-              summary: "CORS Metricas"
-              consumes:
-                - "application/json"
-              produces:
-                - "application/json"
-              responses:
-                '200':
-                  description: "CORS Preflight exitoso"
-                  headers:
-                    Access-Control-Allow-Headers:
-                      type: "string"
-                    Access-Control-Allow-Methods:
-                      type: "string"
-                    Access-Control-Allow-Origin:
-                      type: "string"
-              x-amazon-apigateway-integration:
-                type: "mock"
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                responses:
-                  default:
-                    statusCode: "200"
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
-                      method.response.header.Access-Control-Allow-Origin: "'*'"
-                    responseTemplates:
-                      application/json: ""
-                passthroughBehavior: "when_no_match"
   # =========================================================================
   # RECURSOS DE COMPUTO (LAMBDA)
   # =====================================================================
@@ -978,6 +936,7 @@ Resources:
       Environment:
         Variables:
           STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
+          NOTIFICACIONES_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - Statement:
             - Effect: Allow
@@ -1677,30 +1636,6 @@ Resources:
           Type: Api
           Properties:
             Path: /notificaciones/leer
-            Method: post
-            RestApiId: !Ref VeritasApi
-    Metadata:
-      BuildMethod: python3.10
-
-  MaterialidadDetonarLambda:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub 'veritas-control-materialidad-detonar-${Environment}'
-      Handler: detonar_handler.handler
-      CodeUri: ./lambdas/materialidad/
-      Role: !GetAtt VeritasLambdaExecutionRole.Arn
-      # 🚀 VELOCIDAD CRÍTICA: Se omite VpcConfig de forma deliberada para responder en 0.1ms plans
-      # y conectarse directamente con la red global de Bedrock, DynamoDB y Step Functions sin NAT Gateways.
-      Environment:
-        Variables:
-          # 🔌 Llavero de variables inmutables de red resueltas por SAM:
-          NOTIFICACIONES_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
-          MATERIALIDAD_STATE_MACHINE_ARN: !Ref VeritasMaterialidadStateMachine
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /materialidad/detonar
             Method: post
             RestApiId: !Ref VeritasApi
     Metadata:
