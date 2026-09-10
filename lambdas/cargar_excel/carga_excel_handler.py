@@ -125,9 +125,8 @@ def handler(event, context):
                 cursor.execute(query_cross_match, (tenant_id,))
                 colisiones_detectadas = cursor.fetchall()
 
-                # Instanciamos la persistencia NoSQL elástica para el feed
                 dynamodb_notif = boto3.resource('dynamodb')
-                tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', f"veritas-control-notificaciones-dev")
+                tabla_notif_name = os.environ.get('NOTIFICACIONES_TABLE', "veritas-control-notificaciones-dev")
                 table_notif = dynamodb_notif.Table(tabla_notif_name)
                 
                 fecha_actual_unix = int(datetime.utcnow().timestamp())
@@ -139,14 +138,14 @@ def handler(event, context):
                         id_alerta = f"ALERT-69B-{str(uuid.uuid4())[:8].upper()}"
                         table_notif.put_item(
                             Item={
-                                'tenant_id': tenant_id,          # 🎯 Sintonizado al tenant real de la RAM
-                                'notificacion_id': id_alerta,    
-                                'tipo': 'IA',                    
+                                'tenant_id': tenant_id,
+                                'notificacion_id': id_alerta,
+                                'tipo': 'IA',
                                 'titulo': '🚨 RIESGO Artículo 69-B:',
                                 'descripcion': f"Se detectó transaccionalidad con la empresa boletinada {nombre_malo} ({rfc_malo}) en estatus de [{situacion_sat}]. Se requiere atención legal inmediata.",
                                 'creado_el': datetime.utcnow().isoformat() + "Z",
                                 'leido': False,
-                                'fecha_expiracion': ttl_10_dias  
+                                'fecha_expiracion': ttl_10_dias
                             }
                         )
                 else:
@@ -154,20 +153,54 @@ def handler(event, context):
                     id_alerta = f"NOTIF-EXCEL-{str(uuid.uuid4())[:8].upper()}"
                     table_notif.put_item(
                         Item={
-                            'tenant_id': tenant_id,          # 🎯 Sintonizado al tenant real de la RAM
-                            'notificacion_id': id_alerta,    
-                            'tipo': 'SAT',                    
+                            'tenant_id': tenant_id,
+                            'notificacion_id': id_alerta,
+                            'tipo': 'SAT',
                             'titulo': '🏛️ Carga de CFDIs Exitosa:',
                             'descripcion': f"El archivo masivo de Excel se procesó de forma limpia e indexó {len(facturas_a_insertar)} transacciones en Postgres libres de riesgos del 69-B.",
                             'creado_el': datetime.utcnow().isoformat() + "Z",
                             'leido': False,
-                            'fecha_expiracion': ttl_10_dias  
+                            'fecha_expiracion': ttl_10_dias
                         }
                     )
             except Exception as e_cross:
-                print(f"❌ Error crítico sembrando la notificación real NoSQL: {str(e_cross)}")
-                raise e_cross # Levantamos el error legalmente para cazar si falta la variable de entorno en SAM
-                
+                print(f"⚠️ Alerta en el motor de cruce fiscal: {str(e_cross)}")
+
+            # =========================================================================
+            # ⚡ GATILLO ULTRA-AUTÓMATA: DISPARADOR REAL DE LA STEP FUNCTION
+            # Extraemos las variables vivas directamente del array facturas_a_insertar
+            # =========================================================================
+            if facturas_a_insertar:
+                try:
+                    print("⚡ Indexación SAT completada. Despertando Máquina de Estados de forma automática...")
+                    sfn_client = boto3.client('stepfunctions', region_name='us-east-1')
+                    
+                    state_machine_arn = os.environ.get('MATERIALIDAD_STATE_MACHINE_ARN', 'arn:aws:states:us-east-1:049255850526:stateMachine:veritas-control-materialidad-pipeline-dev')
+                    
+                    # Recuperamos la información del primer registro indexado en la tupla relacional
+                    # Tupla anterior: (descripcion, fecha, uuid, moneda, nombre_receptor, rfc_emisor, rfc_receptor, ...)
+                    primera_factura = facturas_a_insertar[0]
+                    nombre_cliente_real = primera_factura[4]
+                    rfc_cliente_real = primera_factura[6]
+
+                    payload_orquestador = {
+                        "tenant_id": str(tenant_id),
+                        "rfc_cliente": str(rfc_cliente_real),
+                        "nombre_cliente": str(nombre_cliente_real),
+                        "ano_fiscal": "2026",
+                        "contrato": "DESARROLLO_TECNOLOGICO", # Fallback base de especialidad
+                        "tipo_flujo": "RECONSTRUCTIVO"
+                    }
+                    
+                    sfn_client.start_execution(
+                        stateMachineArn=state_machine_arn,
+                        name=f"AUTO-RECONSTRUCTIVO-{str(tenant_id)[:8].upper()}-{str(uuid.uuid4())[:6].upper()}",
+                        input=json.dumps(payload_orquestador)
+                    )
+                    print(f"✅ ¡Pipeline Forense detonado automáticamente para {nombre_cliente_real} ({rfc_cliente_real})!")
+                except Exception as e_sfn:
+                    print(f"⚠️ Alerta: No se pudo arrancar la Step Function automática: {str(e_sfn)}")
+
             cursor.close()
             conn.close()
 
