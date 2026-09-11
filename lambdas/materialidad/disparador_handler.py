@@ -35,15 +35,18 @@ def handler(event, context):
         if not isinstance(payload, dict):
             payload = {}
 
+        print(f"📦 Payload recibido para disparo de materialidad: {json.dumps(payload)}")
         # 📐 SUCCIÓN ATÓMICA DE VARIABLES REALES DE REACT
-        tenant_id = payload.get('tenant_id')
-        rfc_cliente = payload.get('rfc_cliente')
-        nombre_cliente = payload.get('nombre_cliente', 'Contribuyente Auditado')
-        contrato = payload.get('contrato', 'PRESTACION_SERVICIOS')
-        ano_fiscal = payload.get('ano_fiscal', str(datetime.now().year))
-        tipo_flujo = payload.get('tipo_flujo', 'RECONSTRUCTIVO')
+        tenant_id = payload.get('tenant_id') or payload.get('tenantId') or event.get('tenant_id') or event.get('tenantId')
+        
+        rfc_cliente = payload.get('rfc_cliente') or payload.get('rfcCliente') or event.get('rfc_cliente')
+        nombre_cliente = payload.get('nombre_cliente') or payload.get('nombreCliente') or event.get('nombre_cliente', 'Contribuyente Auditado')
+        contrato = payload.get('contrato') or event.get('contrato', 'PRESTACION_SERVICIOS')
+        ano_fiscal = payload.get('ano_fiscal') or event.get('ano_fiscal', str(datetime.now().year))
+        tipo_flujo = payload.get('tipo_flujo') or event.get('tipo_flujo', 'RECONSTRUCTIVO')
 
-        print(f"🔎 Aduana de Sincronización Real: tenant_id=[{tenant_id}], rfc_cliente=[{rfc_cliente}], contrato=[{contrato}]")
+        # Log pericial auditado
+        print(f"🔎 Aduana de Sincronización Real Saneada: tenant_id=[{tenant_id}], rfc_cliente=[{rfc_cliente}], contrato=[{contrato}]")
 
         if not tenant_id or not rfc_cliente:
             print("❌ Crash de validación: Parámetros nulos detectados en el dual-parsing.")
@@ -52,7 +55,7 @@ def handler(event, context):
                 'headers': headers,
                 'body': json.dumps({
                     'error': 'Faltan parámetros críticos (tenant_id, rfc_cliente)',
-                    'debug_received_event_keys': list(event.keys()) if isinstance(event, dict) else 'Not a dict'
+                    'debug_keys_received': list(payload.keys()) if isinstance(payload, dict) else 'Not a dict'
                 })
             }
 
