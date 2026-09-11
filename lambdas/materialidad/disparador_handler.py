@@ -34,7 +34,7 @@ def handler(event, context):
         print(f"🔑 Claims de Cognito recibidas: {claims}")
         
         # Succión elástica del tenant_id desde las tres posibles firmas del token criptográfico de Cognito
-        tenant_id = claims.get('custom:tenant_id') or claims.get('custom:tenantId') or claims.get('tenant_id')
+        tenant_id = claims.get('custom:tenant_id')
         
         # Destapamos el cuerpo interno enviado por React para los datos del cliente
         body_crudo = event.get('body') if isinstance(event, dict) else None
