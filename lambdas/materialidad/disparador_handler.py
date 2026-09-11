@@ -100,9 +100,9 @@ def handler(event, context):
             "rfc_cliente": rfc_cliente,
             "nombre_cliente": nombre_cliente,
             "contrato": contrato,
-            "ano_fiscal": rano_fiscal,
+            "ano_fiscal": ano_fiscal,
             "tipo_flujo": tipo_flujo,
-            "tenant_rfc": llave_compuesta_nosql # Se la pasamos para que los Pasos 1, 2 y 3 hagan sus updates limpiamente
+            "tenant_rfc": llave_compuesta_nosql
         }
 
         print(f"🔥 Gatillando Step Function de Materialidad Saneada: {nombre_ejecucion}")
