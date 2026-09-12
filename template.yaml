@@ -1550,7 +1550,7 @@ Resources:
       CodeUri: ./lambdas/materialidad/
       Environment:
         Variables:
-          DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
+          NOTIFICACIONES_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
           BUCKET_NAME: !Sub 'veritas-control-materialidad-expedientes-${Environment}-${AWS::AccountId}'
       Policies:
         # 🚀 SOLUCIÓN REINA ESTRATÉGICA: Colocamos el nombre de bucket nominal estático dev de SAM
