@@ -1,22 +1,18 @@
 # =========================================================================
-# REESTRUCTURACIÓN CORE PASO 2: ESTRATEGIA DOCUMENTAL POR SECCIÓN SAT
+# MICROSERVICIO REPARADO: MULTIHILO EN PARALELO REAL CON PARSING DE CLAUDE 4.5
 # RUTA EN MAC: lambdas/materialidad/step2_redactor_handler.py
 # =========================================================================
 import os
 import json
 import boto3
+from concurrent.futures import ThreadPoolExecutor # 🚀 MOTOR MULTIHILO REAL DE PYTHON
 
 bedrock_client = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
-# =========================================================================
-# 🏗️ REGINA DE PATRÓN STRATEGY: CADA DOCUMENTO DE LAS 4 SECCIONES TIENE SU PROMPT
-# Claude 4.5 redacta desde el título solemne hasta el fin barriendo textos en duro
-# =========================================================================
 class BaseDocumentStrategy:
     def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
         raise NotImplementedError
 
-# --- FASE 01: ESTRATEGIAS LEGALES ---
 class ContratoSolemneStrategy(BaseDocumentStrategy):
     def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
         return f"""Actúa como un Abogado Defensor Corporativo de la firma ROUCHERS (RFC: ROU2203162G8).
@@ -24,7 +20,6 @@ class ContratoSolemneStrategy(BaseDocumentStrategy):
         - Representado: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
         - Clausulado Core: Inicia desde el Título solemne, Declaraciones, Cláusula PRIMERA (Objeto exacto del servicio: {conceptos}), SEGUNDA (Infraestructura instalada y activos), TERCERA (Trazabilidad), CUARTA (Vigencia) hasta el cierre e inyección de cuadros de firmas de ambas partes."""
 
-# --- FASE 02: ESTRATEGIAS FISCALES / CUMPLIMIENTO ---
 class DictamenOpinion32DStrategy(BaseDocumentStrategy):
     def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
         return f"""Actúa como un Perito Fiscal de Élite de ROUCHERS.
@@ -32,7 +27,6 @@ class DictamenOpinion32DStrategy(BaseDocumentStrategy):
         - Contribuyente Auditado: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
         - Marco Jurídico: Fundaméntalo en las aduanas del Artículo 69-B del CFF. Certifica la veracidad de las constancias de situación fiscal del mes, la ausencia de créditos fiscales firmes y la simetría tributaria de {conceptos}."""
 
-# --- FASE 03: ESTRATEGIAS DE EVIDENCIAS / SUSTANCIA MATERIAL ---
 class BitacoraMaterialidadStrategy(BaseDocumentStrategy):
     def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
         return f"""Actúa como un Auditor Forense de Sistemas de ROUCHERS.
@@ -40,7 +34,6 @@ class BitacoraMaterialidadStrategy(BaseDocumentStrategy):
         - Cliente: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
         - Evidencias: Cita y argumenta la existencia inmutable de reportes mensuales de actividades, bitácoras de control técnico, minutas de juntas operativas con timestamps y archivos fotográficos geolocalizados que demuestran mecánicamente la materialidad de {conceptos}."""
 
-# --- FASE 04: ESTRATEGIAS FINANCIERAS / COMPROBACIÓN ---
 class AnalisisFlujoBancarioStrategy(BaseDocumentStrategy):
     def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
         return f"""Actúa como un Perito Contable Forense de la firma ROUCHERS.
@@ -48,10 +41,6 @@ class AnalisisFlujoBancarioStrategy(BaseDocumentStrategy):
         - Cliente: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
         - Finanzas: Desglosa la correlación inalterable entre los CFDIs emitidos por los conceptos de [{conceptos}], el traslado expreso del IVA y las salidas monetarias registradas en los estados de cuenta bancarios institucionales, erradicando presunciones de triangulación de efectivo."""
 
-# =========================================================================
-# 🏭 EL FACTORY DE ARCHIVOS DE LA SUITE VERITAS
-# Registra cada archivo obligatorio mapeado exactamente a su respectiva sección SAT
-# =========================================================================
 DOCUMENT_FACTORY = {
     "CONTRATO_PRESTACION_SERVICIOS": {"strategy": ContratoSolemneStrategy(), "folder": "01_LEGAL_Y_CONSTITUTIVO"},
     "DICTAMEN_OPINION_32D": {"strategy": DictamenOpinion32DStrategy(), "folder": "02_CUMPLIMIENTO_FISCAL"},
@@ -59,20 +48,58 @@ DOCUMENT_FACTORY = {
     "INFORME_FLUJO_BANCARIO": {"strategy": AnalisisFlujoBancarioStrategy(), "folder": "04_COMPROBACION_FINANCIERA"}
 }
 
+# 🚀 FUNCIÓN ATÓMICA AISLADA PARA EJECUCIÓN CONCURRENTE EN PARALELO
+def procesar_un_documento_en_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
+    if doc_id not in DOCUMENT_FACTORY:
+        return None
+        
+    config = DOCUMENT_FACTORY[doc_id]
+    strategy = config["strategy"]
+    folder_sat = config["folder"]
+
+    prompt_final = strategy.construir_prompt_pericial(nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
+    body_request = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 4000,
+        "temperature": 0.2,
+        "messages": [{"role": "user", "content": prompt_final}]
+    })
+
+    try:
+        model_id_real = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        print(f"📡 Hilo Activo: Invocando de forma paralela [{doc_id}]")
+        
+        response = bedrock_client.invoke_model(
+            modelId=model_id_real, contentType="application/json", accept="application/json", body=body_request
+        )
+        response_body = json.loads(response.get('body').read())
+        
+        # 🚀 REPARACIÓN REINA SÉNIOR DE PARSING: 
+        # Accedemos al primer elemento de la lista de contenido devuelta por la API real de Bedrock
+        texto_ia_generado = response_body['content'][0]['text'].replace("```html", "").replace("```", "").strip()
+        
+        return {
+            "id_documento": doc_id,
+            "nombre_archivo": f"{doc_id}_{ano_fiscal}.pdf",
+            "folder_seccion": folder_sat,
+            "prosa_completa_ia": texto_ia_generado
+        }
+    except Exception as e:
+        print(f"❌ Error crítico en la hebra del documento {doc_id}: {str(e)}")
+        return None
+
 def handler(event, context):
     print("🤖 Paso 2 Activo: Evaluando Petición mediante Fábrica de Secciones...")
     
-    # Captura de tokens dinámicos enviados por tu Front-End en React
-    tipo_peticion = event.get('tipo_peticion', 'GENERAR_TODAS')  # GENERAR_TODAS | UNICA_SECCION | UNICO_ARCHIVO
-    seccion_target = event.get('seccion_target', '')            # 01_LEGAL_Y_CONSTITUTIVO, 02_CUMPLIMIENTO_FISCAL, etc.
-    archivo_target = event.get('archivo_target', '')            # CONTRATO_PRESTACION_SERVICIOS, etc.
+    tipo_peticion = event.get('tipo_peticion', 'GENERAR_TODAS')  
+    seccion_target = event.get('seccion_target', '')            
+    archivo_target = event.get('archivo_target', '')            
     
     nombre_cliente = event.get('nombre_cliente', 'Contribuyente Auditado')
     rfc_cliente = event.get('rfc_cliente', '')
     ano_fiscal = event.get('ano_fiscal', '2026')
     conceptos_sat = event.get('string_catalogo_ia', 'Servicios profesionales integrales corporativos')
 
-    # 🚀 DETERMINACIÓN ELÁSTICA DEL LOTE DE ARCHIVOS (MÁXIMA RESILIENCIA)
     archivos_por_procesar = []
     
     if tipo_peticion == 'GENERAR_TODAS':
@@ -84,44 +111,24 @@ def handler(event, context):
 
     resultados_redaccion_ia = []
 
-    # Gatillamos la iteración mandando ráfagas a Claude 4.5 Haiku
-    for doc_id in archivos_por_procesar:
-        if doc_id not in DOCUMENT_FACTORY:
-            continue
-            
-        config = DOCUMENT_FACTORY[doc_id]
-        strategy = config["strategy"]
-        folder_sat = config["folder"]
+    # =========================================================================
+    # 🚀 GATILLO DE CONCURRENCIA MÁXIMA EN HILOS DE RED (DESTRUYE EL TIMEOUT)
+    # Lanza las 4 peticiones a Bedrock en paralelo en el mismo milisegundo
+    # =========================================================================
+    print(f"⚡ Desplegando Pool de hilos asíncronos para procesar {len(archivos_por_procesar)} documentos...")
+    with ThreadPoolExecutor(max_workers=len(archivos_por_procesar)) as executor:
+        # Mapeamos los trabajos concurrentes
+        futuros = [
+            executor.submit(procesar_un_documento_en_hilo, doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
+            for doc_id in archivos_por_procesar
+        ]
+        
+        # Recolectamos las respuestas conformes vayan terminando
+        for futuro in futuros:
+            resultado = futuro.result()
+            if resultado:
+                resultados_redaccion_ia.append(resultado)
 
-        # Construcción del prompt extendido pericial
-        prompt_final = strategy.construir_prompt_pericial(nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
-
-        body_request = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 4000,
-            "temperature": 0.2,
-            "messages": [{"role": "user", "content": prompt_final}]
-        })
-
-        try:
-            model_id_real = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-            print(f"📡 Invocando a Claude 4.5 para armar el documento: [{doc_id}] de la sección [{folder_sat}]")
-            
-            response = bedrock_client.invoke_model(
-                modelId=model_id_real, contentType="application/json", accept="application/json", body=body_request
-            )
-            response_body = json.loads(response.get('body').read())
-            texto_ia_generado = response_body['content']['text'].replace("```html", "").replace("```", "").strip()
-            
-            resultados_redaccion_ia.append({
-                "id_documento": doc_id,
-                "nombre_archivo": f"{doc_id}_{ano_fiscal}.pdf",
-                "folder_seccion": folder_sat,
-                "prosa_completa_ia": texto_ia_generado
-            })
-        except Exception as e:
-            print(f"❌ Error crítico en la hebra del documento {doc_id}: {str(e)}")
-
-    # Propagamos los entregables empaquetados hacia el Paso 3 (Escultor ReportLab)
+    print(f"🎯 Concurrencia completada de forma exitosa. Lote listo con {len(resultados_redaccion_ia)} archivos.")
     event['archivos_redactados_ia'] = resultados_redaccion_ia
     return event
