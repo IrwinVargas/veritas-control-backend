@@ -62,8 +62,13 @@ def handler(event, context):
 
         # Compilación vectorial del PDF
         doc_template.build(story)
-        pdf_buffer.seek(0)
+        pdf_buffer.flush() 
         pdf_bytes_reales = pdf_buffer.getvalue()
+        
+        if len(pdf_bytes_reales) == 0:
+            print(f"⚠️ ¡ALERTA CRÍTICA! El buffer para {nombre_file} se generó vacío. Re-intentando succión estricta...")
+            pdf_buffer.seek(0)
+            pdf_bytes_reales = pdf_buffer.read()
 
         # 📐 COORDENADA MULTIDIMENSIONAL EXACTA EN S3 (Dividida por tus 4 Carpetas SAT)
         s3_key_pdf = f"{tenant_id}/{rfc_cliente}/{ano_fiscal}/{folder_sat}/{nombre_file}"
