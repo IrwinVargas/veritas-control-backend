@@ -104,6 +104,19 @@ Resources:
       RouteTableIds:
         - !Ref VeritasTablaRuteoPrivada
 
+  SecretsManagerEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Aduana perimetral que abre el puerto 443 interno para Secrets Manager"
+      VpcId: !Ref VeritasVCP
+      SecurityGroupIngress:
+        # 🔥 REPARACIÓN REINA: Permitimos la entrada por el puerto 443 
+        # única y estrictamente a las Lambdas que tengan tu VeritasLambdaSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref VeritasLambdasSecurityGroup
+
   SecretsManagerVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -114,7 +127,7 @@ Resources:
         - !Ref VeritasSubnetPrivadaUno
         - !Ref VeritasSubnetPrivadaDos
       SecurityGroupIds:
-        - !Ref VeritasLambdasSecurityGroup # Permite que tus Lambdas le peguen por el puerto 443 interno
+        - !Ref SecretsManagerEndpointSecurityGroup # Permite que tus Lambdas le peguen por el puerto 443 interno
       PrivateDnsEnabled: true 
 
   ParamSecurityGroup:
