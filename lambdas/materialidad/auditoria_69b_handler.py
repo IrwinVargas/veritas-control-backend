@@ -1,8 +1,31 @@
 import os
 import json
 import pg8000
+import boto3
 
 _db_connection = None
+
+def obtener_password_vivo_secrets_manager():
+    # 🚀 EXTRACCIÓN MAESTRA POR ARN
+    # Succiona el ARN único e inmutable directo de la infraestructura de AWS
+    secret_arn = os.environ.get('SECRETS_MANAGER_DB_ARN')
+    
+    if not secret_arn:
+        print("❌ Error crítico: El SECRETS_MANAGER_ARN no está configurado en las variables globales.")
+        raise ValueError("Missing SECRETS_MANAGER_ARN variable")
+        
+    print(f"🔐 Handshake Criptográfico: Conectando de forma privada mediante PrivateLink al ARN: [{secret_arn}]")
+    
+    # Conexión local interna sin salir a internet gracias al VPC Endpoint Interface
+    client = boto3.client(service_name='secretsmanager', region_name='us-east-1')
+    try:
+        # Boto3 acepta el ARN completo de forma nativa e impecable
+        response = client.get_secret_value(SecretId=secret_arn)
+        secret_dict = json.loads(response['SecretString'])
+        return secret_dict['password']
+    except Exception as e:
+        print(f"❌ Error fatal succionando la contraseña viva desde el ARN: {str(e)}")
+        raise e
 
 def obtener_conexion_db():
     global _db_connection
@@ -12,7 +35,7 @@ def obtener_conexion_db():
         host=os.environ.get('DB_HOST'),
         database=os.environ.get('DB_NAME'),
         user=os.environ.get('DB_USER'),
-        password=os.environ.get('DB_PASSWORD'),
+        password=obtener_password_vivo_secrets_manager(),
         port=int(os.environ.get('DB_PORT', 5432))
     )
     return _db_connection

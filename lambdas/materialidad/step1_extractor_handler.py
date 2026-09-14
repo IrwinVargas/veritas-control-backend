@@ -7,6 +7,28 @@ import pg8000
 dynamodb = boto3.resource('dynamodb')
 _db_connection_step1 = None
 
+def obtener_password_vivo_secrets_manager():
+    # 🚀 EXTRACCIÓN MAESTRA POR ARN
+    # Succiona el ARN único e inmutable directo de la infraestructura de AWS
+    secret_arn = os.environ.get('SECRETS_MANAGER_DB_ARN')
+    
+    if not secret_arn:
+        print("❌ Error crítico: El SECRETS_MANAGER_ARN no está configurado en las variables globales.")
+        raise ValueError("Missing SECRETS_MANAGER_ARN variable")
+        
+    print(f"🔐 Handshake Criptográfico: Conectando de forma privada mediante PrivateLink al ARN: [{secret_arn}]")
+    
+    # Conexión local interna sin salir a internet gracias al VPC Endpoint Interface
+    client = boto3.client(service_name='secretsmanager', region_name='us-east-1')
+    try:
+        # Boto3 acepta el ARN completo de forma nativa e impecable
+        response = client.get_secret_value(SecretId=secret_arn)
+        secret_dict = json.loads(response['SecretString'])
+        return secret_dict['password']
+    except Exception as e:
+        print(f"❌ Error fatal succionando la contraseña viva desde el ARN: {str(e)}")
+        raise e
+
 def obtener_conexion_postgres_step1():
     """
     [ENFOQUE LOCAL PURO] Abre el socket TCP relacional en microsegundos fijos 
@@ -21,7 +43,7 @@ def obtener_conexion_postgres_step1():
     db_name     = os.environ.get('DB_NAME')
     db_user     = os.environ.get('DB_USER')
     db_port_str = os.environ.get('DB_PORT')
-    db_password = os.environ.get('DB_PASSWORD')
+    db_password = obtener_password_vivo_secrets_manager()
 
     print(f"🔌 [Paso 1] Estableciendo socket TCP interno de la VPC: {host_real}:{db_port_str}")
     _db_connection_step1 = pg8000.connect(

@@ -787,7 +787,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
           NOTIFICACIONES_TABLE: !Sub 'veritas-control-notificaciones-${Environment}'
       Policies:
         - Statement:
@@ -817,7 +817,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
       Events:
         ApiEvent:
           Type: Api
@@ -1109,7 +1109,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
       Events:
         ApiEvent:
           Type: Api
@@ -1160,7 +1160,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref S3BucketTemporalSAT
@@ -1197,7 +1197,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Architectures: 
         - x86_64
@@ -1517,7 +1517,7 @@ Resources:
           DB_PORT: '5432'
           DB_NAME: 'veritas_db'
           DB_USER: 'veritas_admin'
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${RdsSecretArnFromSsm}:SecretString:password}}'
+          SECRETS_MANAGER_DB_ARN: !Ref RdsSecretArnFromSsm
           DYNAMODB_TABLE: !Sub 'veritas-control-materialidad-status-${Environment}'
       Policies:
         - AWSLambdaVPCAccessExecutionRole
