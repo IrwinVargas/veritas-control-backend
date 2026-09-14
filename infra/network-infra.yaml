@@ -109,7 +109,7 @@ Resources:
     Properties:
       VpcId: !Ref VeritasVCP
       ServiceName: !Sub 'com.amazonaws.${AWS::Region}.secretsmanager'
-      VpCEndpointType: Interface
+      VpcEndpointType: Interface
       SubnetIds: 
         - !Ref VeritasSubnetPrivadaUno
         - !Ref VeritasSubnetPrivadaDos
