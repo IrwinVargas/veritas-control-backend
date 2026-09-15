@@ -1,5 +1,5 @@
 # =========================================================================
-# MICROSERVICIO FINAL: REDACTOR ASÍNCRONO BASADO EN CATÁLOGO DE PROMPTS NOSQL
+# MICROSERVICIO CORREGIDO: DESPACHADOR MULTIDOCUMENTO POR SECCIÓN SAT
 # RUTA EN MAC: lambdas/materialidad/step2_redactor_handler.py
 # =========================================================================
 import os
@@ -10,41 +10,54 @@ from concurrent.futures import ThreadPoolExecutor
 bedrock_client = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb')
 
-# 🚀 FUNCIÓN AISLADA: SUCCIONAL EL PROMPT DE DYNAMODB E INYECTA LOS DATOS EN CALIENTE
+# =========================================================================
+# 🏭 MAPEO CORE DE INFRAESTRUCTURA: LAS 4 SECCIONES DEL CHECKLIST REAL
+# Vincula qué IDs de documentos deben nacer en cada sección del Front
+# =========================================================================
+MAPEO_DOCUMENTOS_POR_SECCION = {
+    "01_LEGAL_Y_CONSTITUTIVO": [
+        "CONTRATO_PRESTACION_SERVICIOS",
+        "ACTA_CONSTITUTIVA_RESPALDO",
+        "IDENTIFICACION_REPRESENTANTE_LEGAL"
+    ],
+    "02_CUMPLIMIENTO_FISCAL": [
+        "DICTAMEN_OPINION_32D",
+        "CONSTANCIA_SITUACION_FISCAL_CEDULA"
+    ],
+    "03_EVIDENCIA_MATERIALIDAD": [
+        "BITACORA_CONTROL_ASISTENCIA",
+        "MEMORIA_FOTOGRAFICA_GEOLOCALIZADA"
+    ],
+    "04_COMPROBACION_FINANCIERA": [
+        "INFORME_FLUJO_BANCARIO",
+        "CONCILIACION_XML_COMPROBANTES"
+    ]
+}
+
 def recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
     nombre_tabla_prompts = os.environ.get('PROMPTS_TABLE', 'veritas-control-prompts-catalog-dev')
     table = dynamodb.Table(nombre_tabla_prompts)
-    
     try:
-        # Succiona el machote base guardado en la base de conocimientos NoSQL
         response = table.get_item(Key={'id_documento': doc_id})
         item = response.get('Item')
-        
         if not item:
-            print(f"⚠️ Advertencia: No se encontró el prompt para [{doc_id}] en DynamoDB. Usando fallback noble.")
-            prompt_maestro_crudo = "Redacta un documento formal de materialidad para {nombre_cliente} ({rfc_cliente}) sobre {conceptos_sat} año {ano_fiscal}."
+            print(f"⚠️ Prompt [{doc_id}] no sembrado en DynamoDB. Creando prompt genérico emergente...")
+            prompt_base = "Redacta el documento formal {id_documento} para {nombre_cliente} ({rfc_cliente}) sobre {conceptos_sat} del año {ano_fiscal}."
             folder_seccion = "01_LEGAL_Y_CONSTITUTIVO"
         else:
-            prompt_maestro_crudo = item.get('prompt_base_markdown', '')
+            prompt_base = item.get('prompt_base_markdown', '')
             folder_seccion = item.get('folder_seccion', '01_LEGAL_Y_CONSTITUTIVO')
 
-        # 🎯 COMPOSICIÓN DINÁMICA: Rellenamos los casilleros vacíos con la info real del cliente
-        prompt_finalizado = prompt_maestro_crudo.format(
-            nombre_cliente=nombre_cliente,
-            rfc_cliente=rfc_cliente,
-            ano_fiscal=ano_fiscal,
-            conceptos_sat=conceptos_sat
+        prompt_finalizado = prompt_base.format(
+            nombre_cliente=nombre_cliente, rfc_cliente=rfc_cliente, ano_fiscal=ano_fiscal, conceptos_sat=conceptos_sat
         )
-        
         return prompt_finalizado, folder_seccion
     except Exception as e:
-        print(f"❌ Error succionando prompt para {doc_id} de DynamoDB: {str(e)}")
+        print(f"❌ Error en lectura NoSQL para {doc_id}: {str(e)}")
         return None, "01_LEGAL_Y_CONSTITUTIVO"
 
 def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
-    # 1. Recuperamos el prompt robustecido de DynamoDB
     prompt_inyectado, folder_sat = recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
-    
     if not prompt_inyectado:
         return None
 
@@ -57,27 +70,13 @@ def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fi
 
     try:
         model_id_real = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-        print(f"📡 Hilo Activo PrivateLink: Transmitiendo a Bedrock para [{doc_id}]...")
-        
         response = bedrock_client.invoke_model(
-            modelId=model_id_real, 
-            contentType="application/json", 
-            accept="application/json", 
-            body=body_request
+            modelId=model_id_real, contentType="application/json", accept="application/json", body=body_request
         )
         response_body = json.loads(response.get('body').read())
         
-        # =========================================================================
-        # 🚀 REPARACIÓN REINA SÉNIOR DE TIPADO (ANICUILA EL LIST INDICES STR ERROR)
-        # Accedemos al primer elemento [0] de la lista antes de extraer la llave 'text'
-        # =========================================================================
         lista_contenido = response_body.get('content', [])
-        if not lista_contenido or not isinstance(lista_contenido, list):
-            raise ValueError(f"Estructura hostil o vacía devuelta por Bedrock para {doc_id}")
-            
         texto_ia_markdown = lista_contenido[0].get('text', '').replace("```html", "").replace("```", "").strip()
-        
-        print(f"✅ Hilo Exitoso: Se succionaron {len(texto_ia_markdown)} caracteres de prosa para [{doc_id}]")
         
         return {
             "id_documento": doc_id,
@@ -86,38 +85,44 @@ def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fi
             "prosa_completa_ia": texto_ia_markdown
         }
     except Exception as e:
-        print(f"❌ Error crítico en ráfaga Bedrock para {doc_id}: {str(e)}")
+        print(f"❌ Error en ráfaga Bedrock para {doc_id}: {str(e)}")
         return None
 
 def handler(event, context):
-    print("🤖 Paso 2 Activo: Ejecutando Inyector elástico Multi-Prompt desde DynamoDB NoSQL...")
+    print("🤖 Paso 2 Activo: Evaluando Alcance Dinámico Multi-Documento...")
     
     tipo_peticion = event.get('tipo_peticion', 'GENERAR_TODAS')  
-    seccion_target = event.get('seccion_target', '')            
+    seccion_target = event.get('seccion_target', '01_LEGAL_Y_CONSTITUTIVO')            
     archivo_target = event.get('archivo_target', '')            
     
     nombre_cliente = event.get('nombre_cliente', 'ANTONIO IGNACIO CERVANTES REBOLLO')
     rfc_cliente = event.get('rfc_cliente', 'CERA921023NN6')
     ano_fiscal = event.get('ano_fiscal', '2026')
-    conceptos_sat = event.get('string_catalogo_ia', 'Servicios profesionales integrales corporativos contables')
+    conceptos_sat = event.get('string_catalogo_ia', 'Servicios profesionales integrales de consultoría')
 
-    # Catálogo elástico de validación de documentos requeridos por la aduana del Front
-    # (Esto lo puedes mapear dinámicamente haciendo un scan rápido a tu tabla de prompts en vez de un array estático)
-    catálogo_maestro_docs = ["CONTRATO_PRESTACION_SERVICIOS", "DICTAMEN_OPINION_32D", "BITACORA_CONTROL_ASISTENCIA", "INFORME_FLUJO_BANCARIO"]
-    
+    # =========================================================================
+    # 🚀 LA MEJORA MAESTRA: DETERMINACIÓN ELÁSTICA DE DOCUMENTOS DEL LOTE
+    # Rompe el cuello de botella absorbiendo arrays enteros por sección del Front
+    # =========================================================================
     archivos_por_procesar = []
+    
     if tipo_peticion == 'GENERAR_TODAS':
-        archivos_por_procesar = catálogo_maestro_docs
+        # Succiona absolutamente todos los archivos de las 4 secciones de golpe
+        for lista_docs in MAPEO_DOCUMENTOS_POR_SECCION.values():
+            archivos_por_procesar.extend(lista_docs)
+            
     elif tipo_peticion == 'UNICA_SECCION':
-        # Fallback elástico temporal de filtrado por segmento
-        archivos_por_procesar = [archivo_target] if archivo_target else [catálogo_maestro_docs[0]]
+        # 🎯 LA REPARACIÓN REINA: Extrae el array completo de los 3 documentos de esa sección
+        archivos_por_procesar = MAPEO_DOCUMENTOS_POR_SECCION.get(seccion_target, [])
+        
     elif tipo_peticion == 'UNICO_ARCHIVO':
         archivos_por_procesar = [archivo_target] if archivo_target else ["CONTRATO_PRESTACION_SERVICIOS"]
 
+    print(f"🔎 Lote Determinado: Se enviarán en paralelo [{len(archivos_por_procesar)}] solicitudes a Bedrock.")
     resultados_redaccion_ia = []
 
-    # 🚀 EJECUCIÓN MULTIHILO CONCURRENTE SIMULTÁNEA
-    with ThreadPoolExecutor(max_workers=len(archivos_por_procesar)) as executor:
+    # Ejecución multihilo simultánea real de la lista de documentos
+    with ThreadPoolExecutor(max_workers=max(1, len(archivos_por_procesar))) as executor:
         futuros = [
             executor.submit(ejecutar_invocacion_bedrock_hilo, doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
             for doc_id in archivos_por_procesar
@@ -127,6 +132,5 @@ def handler(event, context):
             if res:
                 resultados_redaccion_ia.append(res)
 
-    print(f"🎯 Lote de redacción completado. Se despachan {len(resultados_redaccion_ia)} textos Markdown hacia el Paso 3.")
     event['archivos_redactados_ia'] = resultados_redaccion_ia
     return event
