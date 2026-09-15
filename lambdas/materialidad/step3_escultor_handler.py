@@ -29,8 +29,8 @@ def handler(event, context):
     # Succionamos el array de documentos redactados por el Paso 2 (Strategy)
     archivos_a_esculpir = event.get('archivos_redactados_ia', [])
     
-    bucket_name = os.environ.get('BUCKET_NAME', 'veritas-control-materialidad-dev')
-    nombre_tabla = os.environ.get('NOTIFICACIONES_TABLE', 'veritas-control-materialidad-nosql-dev')
+    bucket_name = os.environ.get('BUCKET_NAME')
+    nombre_tabla = os.environ.get('NOTIFICACIONES_TABLE')
     table = dynamodb.Table(nombre_tabla)
 
     # 🚀 PATRÓN ITERADOR: Procesa y sella cada documento de forma independiente
