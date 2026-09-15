@@ -1,97 +1,175 @@
-# =========================================================================
-# MICROSERVICIO FINAL: ESCULTOR VECTORIAL POLIMÓRFICO EN LOTE (4 SECCIONES)
-# RUTA EN MAC: lambdas/materialidad/step3_escultor_handler.py
-# =========================================================================
 import os
 import io
 import json
 import boto3
+import re
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_CENTER
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
+# =========================================================================
+# 🎨 CANVAS MEMBRETADO JURÍDICO (DIBUJA EL DISEÑO EXACTO DE TU IMAGEN)
+# =========================================================================
+class CanvasMembretadoRouchers(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pages = []
+
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        # Ciclo de renderizado de dos pasadas para numeración exacta de hojas
+        num_paginas = len(self.pages)
+        for page in self.pages:
+            self.__dict__.update(page)
+            self.dibujar_elementos_marca(num_paginas)
+            super().showPage()
+        super().save()
+
+    def dibujar_elementos_marca(self, total_paginas):
+        self.saveState()
+        
+        # 🎨 CODIFICACIÓN DE COLORES DE LA IMAGEN ADJUNTA
+        color_bronce = colors.HexColor("#a18262") # Tono bronce/oro viejo elegante
+        color_negro_solido = colors.HexColor("#0f1115") # Negro institucional
+        
+        # 🏛️ 1. ENCABEZADO GEOMÉTRICO DIAGONAL SUPERIOR
+        # Dibujamos el bloque negro superior derecho de tu imagen
+        path_negro = self.beginPath()
+        path_negro.moveTo(250, 792) # Punto de quiebre diagonal
+        path_negro.lineTo(612, 792) # Esquina superior derecha
+        path_negro.lineTo(612, 690) # Lateral derecho bajo
+        path_negro.lineTo(340, 740) # Cierre diagonal
+        path_negro.close()
+        self.setFillColor(color_negro_solido)
+        self.drawPath(path_negro, fill=1, stroke=0)
+        
+        # Dibujamos la franja bronce/oro viejo que abraza el encabezado izquierdo
+        path_bronce = self.beginPath()
+        path_bronce.moveTo(0, 792)  # Esquina superior izquierda
+        path_bronce.lineTo(250, 792)
+        path_bronce.lineTo(340, 740)
+        path_bronce.lineTo(0, 740)   # Línea recta horizontal izquierda
+        path_bronce.close()
+        self.setFillColor(color_bronce)
+        self.drawPath(path_bronce, fill=1, stroke=0)
+
+        # Textos informativos de ROUCHERS adentro del bloque negro (Idéntico a tu imagen)
+        self.setFillColor(colors.white)
+        self.setFont("Helvetica-Bold", 8)
+        self.drawRightString(580, 720, "Ph: +52 55 6730 4204  |  Fax: Forense Digital")
+        self.drawRightString(580, 705, "Email: contacto@rouchers.com.mx")
+        
+        self.setFillColor(color_negro_solido)
+        self.setFont("Helvetica-Bold", 14)
+        self.drawString(45, 755, "ROUCHERS, S.C.")
+        self.setFont("Helvetica", 8)
+        self.drawString(45, 745, "Despacho de Peritos Fiscales de Élite")
+
+        # 🏛️ 2. PIE DE PÁGINA CORPORATIVO BRONCE (BLOQUE RECTANGULAR DE TU IMAGEN)
+        self.setFillColor(color_bronce)
+        self.rect(0, 0, 612, 60, fill=1, stroke=0)
+        
+        # Datos de localización impresos en blanco limpio sobre el pie de página
+        self.setFillColor(colors.white)
+        self.setFont("Helvetica", 9)
+        self.drawString(45, 34, "DOMICILIO FISCAL REAL: Paseo de la Reforma 405, Piso 12, Cuauhtémoc, CDMX, C.P. 06500")
+        self.drawString(45, 20, "Ecosistema Automatizado Inmune a Exclusiones del Artículo 69-B del CFF")
+        
+        # Contador dinámico de hojas a la derecha
+        self.drawRightString(567, 20, f"Página {self._pageNumber} de {total_paginas}")
+        
+        self.restoreState()
+
+# =========================================================================
+# ⚙️ PARSER MAESTRO: TRANSFORMA MARKDOWN EN ETIQUETAS LEPAN COMPATIBLES HTML
+# =========================================================================
+def parsear_markdown_a_html_reportlab(texto_markdown):
+    if not texto_markdown:
+        return ""
+    
+    # 1. Sanitizamos saltos y caracteres extraños
+    texto = str(texto_markdown).replace("\r", "")
+    
+    # 2. Convertimos títulos Markdown (### o ##) a negritas con quiebre
+    texto = re.sub(r'###\s+(.*?)\n', r'<br/><b>\1</b><br/>', texto)
+    texto = re.sub(r'##\s+(.*?)\n', r'<br/><b>\1</b><br/>', texto)
+    
+    # 3. PARSER REINA: Traduce los asteriscos dobles de Bedrock (**texto**) a <b>texto</b>
+    texto = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
+    
+    # 4. Traduce viñetas ordinarias de guiones a tags limpios
+    texto = re.sub(r'-\s+(.*?)\n', r'• \1<br/>', texto)
+    
+    return texto
+
 def handler(event, context):
-    print("🎨 Paso 3 Activo: Iniciando la Fábrica de Renderizado ReportLab en Lote...")
+    print("🎨 Paso 3 Activo: Desplegando el Escultor Vectorial con la Plantilla de la Imagen...")
     
     tenant_id = event.get('tenant_id', 'bufete-veritas-uuid-1111')
     rfc_cliente = event.get('rfc_cliente', '')
     ano_fiscal = event.get('ano_fiscal', '2026')
     tenant_rfc = event.get('tenant_rfc', f"{tenant_id}#{rfc_cliente}")
-    bucket_name = os.environ.get('BUCKET_NAME', 'veritas-control-materialidad-dev')
     
-    # 🚀 REPARACIÓN REINA SÉNIOR: PARSING ELÁSTICO MULTI-NODO DE PROSA SAT
-    # Buscamos 'archivos_redactados_ia' en la raíz, o anidado dentro de $.step2_output, $.Result, etc.
+    # Succionamos el array crudo que escupió tu Paso 2 corregido
     archivos_a_esculpir = event.get('archivos_redactados_ia')
     
     if not archivos_a_esculpir and 'step2_output' in event:
-        archivos_a_esculpir = event.get('step2_output', {}).get('archivos_redactados_ia')
-        
-    if not archivos_a_esculpir and 'Result' in event:
-        archivos_a_esculpir = event.get('Result', {}).get('archivos_redactados_ia')
+        archivos_a_esculpir = event.get('step2_output', {}).get('archivos_redactados_ia', [])
 
-    # Si de plano llega nulo por un limbo de red, lo forzamos a una lista para medirlo
     if not archivos_a_esculpir:
-        archivos_a_esculpir = []
+        print("⚠️ Advertencia: Array de textos vacío. Saltando rendering.")
+        return {"status": "SKIPPED", "reason": "No documents provided"}
 
-    print(f"🔎 Auditoría de Envío: Se detectaron [{len(archivos_a_esculpir)}] documentos reales listos para esculpir.")
-
-    if len(archivos_a_esculpir) == 0:
-        print("⚠️ ALERTA CRÍTICA: El array llegó vacío. Inyectando payload de contingencia para forzar la entrada...")
-        # Fallback noble de desarrollo para que el bucle corra sí o sí en tu Mac el día de hoy
-        archivos_a_esculpir = [{
-            "nombre_archivo": f"CONTRATO_PRESTACION_SERVICIOS_{ano_fiscal}.pdf",
-            "folder_seccion": "01_LEGAL_Y_CONSTITUTIVO",
-            "prosa_completa_ia": "<b>CONTRATO JURÍDICO SOLEMNE EMITIDO POR ROUCHERS.</b><br/>Cláusula PRIMERA. Objeto del Servicio Tributario Preventivo..."
-        }]
-
+    bucket_name = os.environ.get('BUCKET_NAME', 'veritas-control-materialidad-dev')
     nombre_tabla = os.environ.get('NOTIFICACIONES_TABLE', 'veritas-control-materialidad-nosql-dev')
     table = dynamodb.Table(nombre_tabla)
 
-    # 🚀 ENTRADA GLORIOSA ASEGURADA AL BUCLE DE PRODUCCIÓN
     for doc in archivos_a_esculpir:
         nombre_file = doc["nombre_archivo"]
         folder_sat = doc["folder_seccion"]
-        prosa_ia = doc["prosa_completa_ia"]
-        
-        print(f"🔥 Procesando y esculpiendo archivo gordo: {nombre_file}")
+        markdown_ia = doc["prosa_completa_ia"]
 
-        # Inicializamos el lienzo en memoria RAM
+        # 🚀 EJECUCIÓN DEL PARSER: Transformamos el Markdown hostil a HTML legal legible
+        prosa_html_limpia = parsear_markdown_a_html_reportlab(markdown_ia)
+
         pdf_buffer = io.BytesIO()
+        # Calzamos márgenes amplios para que el texto jamás choque con tus bloques geométricos superior e inferior
         doc_template = SimpleDocTemplate(
             pdf_buffer, pagesize=letter,
-            rightMargin=45, leftMargin=45, topMargin=110, bottomMargin=75
+            rightMargin=45, leftMargin=45, topMargin=130, bottomMargin=90
         )
         
         story = []
+        styles = getSampleStyleSheet()
+        
         style_legal_body = ParagraphStyle(
-            'DynamicLegalBody', fontName='Helvetica', fontSize=9.5, leading=16,
-            textColor=colors.HexColor("#334155"), alignment=TA_JUSTIFY, spaceAfter=12
+            'PlantillaImagenBody', fontName='Helvetica', fontSize=10, leading=16,
+            textColor=colors.HexColor("#2d3748"), alignment=TA_JUSTIFY, spaceAfter=12
         )
 
-        # Inyectamos los párrafos generados por la IA de principio a fin (Títulos a Firmas)
-        for parrafo in prosa_ia.split('\n'):
-            if parrafo.strip():
-                story.append(Paragraph(parrafo.strip(), style_legal_body))
+        # Inyectamos el contenido limpio formateado
+        for fragmento in prosa_html_limpia.split('<br/>'):
+            if fragmento.strip():
+                story.append(Paragraph(fragmento.strip(), style_legal_body))
 
-        # Compilación vectorial del PDF
-        doc_template.build(story)
+        # Compilación acoplada usando el canvasmaker personalizado de la imagen
+        doc_template.build(story, canvasmaker=CanvasMembretadoRouchers)
         pdf_bytes_reales = pdf_buffer.getvalue()
-        
-        if not pdf_bytes_reales or len(pdf_bytes_reales) < 100:
-            print(f"⚠️ Alerta: getvalue() regresó vacío para {nombre_file}. Forzando rebobinado de puntero...")
-            pdf_buffer.seek(0)
-            pdf_bytes_reales = pdf_buffer.read()
 
-        # 📐 COORDENADA MULTIDIMENSIONAL EXACTA EN S3 (Dividida por tus 4 Carpetas SAT)
+        # Coordenada exacta de almacenamiento segregada por tus 4 Phase SAT folders
         s3_key_pdf = f"{tenant_id}/{rfc_cliente}/{ano_fiscal}/{folder_sat}/{nombre_file}"
         
-        print(f"📡 Sembrando archivo binario en Amazon S3: [{s3_key_pdf}]")
+        print(f"📡 Sembrando PDF de alta gama en S3: [{s3_key_pdf}]")
         s3_client.put_object(
             Bucket=str(bucket_name).strip(),
             Key=s3_key_pdf,
@@ -100,14 +178,8 @@ def handler(event, context):
         )
         pdf_buffer.close()
 
-        # =========================================================================
-        # ⚡ DESCARGA EN CALIENTE PARCIAL (INCREMENTAL NoSQL DYNAMODB)
-        # Mapeamos el nombre del archivo a una clave limpia para actualizar DynamoDB
-        # permitiendo que el Front habilite la descarga de este PDF de inmediato.
-        # =========================================================================
-        campo_db_dinamico = nombre_file.lower().replace(".pdf", "")
-        
-        print(f"💾 Actualizando bandera parcial en DynamoDB para el campo: {campo_db_dinamico}...")
+        # Habilitamos la descarga en caliente parcial en React de este archivo individual
+        campo_db_dinamico = nombre_file.lower().replace(".pdf", "").replace("-", "_")
         table.update_item(
             Key={'tenant_rfc': tenant_rfc},
             UpdateExpression=f"SET {campo_db_dinamico} = :m, estatus_global = :s",
@@ -120,18 +192,5 @@ def handler(event, context):
                 ':s': 'PROCESANDO'
             }
         )
-
-    # =========================================================================
-    # 🏁 CIERRE DEL LOTE TOTAL: Sella el estatus global a COMPLETO al 100%
-    # =========================================================================
-    print("🎯 Lote de cumplimiento SAT completado con éxito absoluto.")
-    table.update_item(
-        Key={'tenant_rfc': tenant_rfc},
-        UpdateExpression="SET estatus_global = :s, porcentaje_avance = :p",
-        ExpressionAttributeValues={
-            ':s': 'COMPLETO',
-            ':p': 100
-        }
-    )
 
     return {"status": "FINISHED", "count": len(archivos_a_esculpir)}
