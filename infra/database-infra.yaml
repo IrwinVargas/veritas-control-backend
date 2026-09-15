@@ -82,6 +82,14 @@ Resources:
         AttributeName: fecha_expiracion
         Enabled: true
   
+  VeritasPromptsCatalogTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: !Sub 'veritas-control-prompts-catalog-${Environment}'
+      PrimaryKey:
+        Name: id_documento # HASH Key (ej. "CONTRATO_PRESTACION_SERVICIOS", "DICTAMEN_OPINION_32D")
+        Type: String
+
   VeritasDbSubnetGroupV2:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -137,3 +145,10 @@ Resources:
       Name: !Sub '/veritas-control/${Environment}/dynamo/notificaciones-table-name'
       Type: String
       Value: !Ref VeritasNotificacionesTable
+
+  ParamVeritasPromptsCatalogTable:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/veritas-control/${Environment}/dynamo/prompts-catalog-table-name'
+      Type: String
+      Value: !Ref VeritasPromptsCatalogTable

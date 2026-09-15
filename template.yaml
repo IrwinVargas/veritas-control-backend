@@ -1549,6 +1549,9 @@ Resources:
             - Effect: Allow
               Action: ["bedrock:InvokeModel"]
               Resource: ["arn:aws:bedrock:*:*:inference-profile/*", "arn:aws:bedrock:*:*:foundation-model/*"]
+            - Effect: Allow
+              Action: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:BatchGetItem", "dynamodb:Scan"]
+              Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/veritas-control-prompts-catalog-${Environment}'
     Metadata:
       BuildMethod: python3.11
 

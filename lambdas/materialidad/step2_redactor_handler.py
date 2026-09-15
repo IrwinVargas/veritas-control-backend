@@ -1,134 +1,119 @@
 # =========================================================================
-# MICROSERVICIO REPARADO: MULTIHILO EN PARALELO REAL CON PARSING DE CLAUDE 4.5
+# MICROSERVICIO FINAL: REDACTOR ASÍNCRONO BASADO EN CATÁLOGO DE PROMPTS NOSQL
 # RUTA EN MAC: lambdas/materialidad/step2_redactor_handler.py
 # =========================================================================
 import os
 import json
 import boto3
-from concurrent.futures import ThreadPoolExecutor # 🚀 MOTOR MULTIHILO REAL DE PYTHON
+from concurrent.futures import ThreadPoolExecutor
 
 bedrock_client = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
+dynamodb = boto3.resource('dynamodb')
 
-class BaseDocumentStrategy:
-    def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
-        raise NotImplementedError
-
-class ContratoSolemneStrategy(BaseDocumentStrategy):
-    def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
-        return f"""Actúa como un Abogado Defensor Corporativo de la firma ROUCHERS (RFC: ROU2203162G8).
-        Redacta de forma íntegra un CONTRATO FORMAL DE PRESTACIÓN DE SERVICIOS PROFESIONALES.
-        - Representado: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
-        - Clausulado Core: Inicia desde el Título solemne, Declaraciones, Cláusula PRIMERA (Objeto exacto del servicio: {conceptos}), SEGUNDA (Infraestructura instalada y activos), TERCERA (Trazabilidad), CUARTA (Vigencia) hasta el cierre e inyección de cuadros de firmas de ambas partes."""
-
-class DictamenOpinion32DStrategy(BaseDocumentStrategy):
-    def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
-        return f"""Actúa como un Perito Fiscal de Élite de ROUCHERS.
-        Redacta un DICTAMEN DE VALIDACIÓN DE COMPLIANCE Y OPINIÓN DE CUMPLIMIENTO 32D POSITIVA.
-        - Contribuyente Auditado: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
-        - Marco Jurídico: Fundaméntalo en las aduanas del Artículo 69-B del CFF. Certifica la veracidad de las constancias de situación fiscal del mes, la ausencia de créditos fiscales firmes y la simetría tributaria de {conceptos}."""
-
-class BitacoraMaterialidadStrategy(BaseDocumentStrategy):
-    def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
-        return f"""Actúa como un Auditor Forense de Sistemas de ROUCHERS.
-        Redacta una MEMORIA FORENSE JUSTIFICADA DE ENTREGABLES Y COMPROBACIÓN DE ASISTENCIA HUMANA DIRECTA.
-        - Cliente: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
-        - Evidencias: Cita y argumenta la existencia inmutable de reportes mensuales de actividades, bitácoras de control técnico, minutas de juntas operativas con timestamps y archivos fotográficos geolocalizados que demuestran mecánicamente la materialidad de {conceptos}."""
-
-class AnalisisFlujoBancarioStrategy(BaseDocumentStrategy):
-    def construir_prompt_pericial(self, nombre, rfc, ano, conceptos):
-        return f"""Actúa como un Perito Contable Forense de la firma ROUCHERS.
-        Redacta un INFORME DE RASTREABILIDAD FINANCIERA, SIMETRÍA ECONÓMICA Y FLUJO MONETARIO.
-        - Cliente: {nombre} (RFC: {rfc}) | Ejercicio Fiscal: {ano}
-        - Finanzas: Desglosa la correlación inalterable entre los CFDIs emitidos por los conceptos de [{conceptos}], el traslado expreso del IVA y las salidas monetarias registradas en los estados de cuenta bancarios institucionales, erradicando presunciones de triangulación de efectivo."""
-
-DOCUMENT_FACTORY = {
-    "CONTRATO_PRESTACION_SERVICIOS": {"strategy": ContratoSolemneStrategy(), "folder": "01_LEGAL_Y_CONSTITUTIVO"},
-    "DICTAMEN_OPINION_32D": {"strategy": DictamenOpinion32DStrategy(), "folder": "02_CUMPLIMIENTO_FISCAL"},
-    "BITACORA_CONTROL_ASISTENCIA": {"strategy": BitacoraMaterialidadStrategy(), "folder": "03_EVIDENCIA_MATERIALIDAD"},
-    "INFORME_FLUJO_BANCARIO": {"strategy": AnalisisFlujoBancarioStrategy(), "folder": "04_COMPROBACION_FINANCIERA"}
-}
-
-# 🚀 FUNCIÓN ATÓMICA AISLADA PARA EJECUCIÓN CONCURRENTE EN PARALELO
-def procesar_un_documento_en_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
-    if doc_id not in DOCUMENT_FACTORY:
-        return None
+# 🚀 FUNCIÓN AISLADA: SUCCIONAL EL PROMPT DE DYNAMODB E INYECTA LOS DATOS EN CALIENTE
+def recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
+    nombre_tabla_prompts = os.environ.get('PROMPTS_TABLE', 'veritas-control-prompts-catalog-dev')
+    table = dynamodb.Table(nombre_tabla_prompts)
+    
+    try:
+        # Succiona el machote base guardado en la base de conocimientos NoSQL
+        response = table.get_item(Key={'id_documento': doc_id})
+        item = response.get('Item')
         
-    config = DOCUMENT_FACTORY[doc_id]
-    strategy = config["strategy"]
-    folder_sat = config["folder"]
+        if not item:
+            print(f"⚠️ Advertencia: No se encontró el prompt para [{doc_id}] en DynamoDB. Usando fallback noble.")
+            prompt_maestro_crudo = "Redacta un documento formal de materialidad para {nombre_cliente} ({rfc_cliente}) sobre {conceptos_sat} año {ano_fiscal}."
+            folder_seccion = "01_LEGAL_Y_CONSTITUTIVO"
+        else:
+            prompt_maestro_crudo = item.get('prompt_base_markdown', '')
+            folder_seccion = item.get('folder_seccion', '01_LEGAL_Y_CONSTITUTIVO')
 
-    prompt_final = strategy.construir_prompt_pericial(nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
+        # 🎯 COMPOSICIÓN DINÁMICA: Rellenamos los casilleros vacíos con la info real del cliente
+        prompt_finalizado = prompt_maestro_crudo.format(
+            nombre_cliente=nombre_cliente,
+            rfc_cliente=rfc_cliente,
+            ano_fiscal=ano_fiscal,
+            conceptos_sat=conceptos_sat
+        )
+        
+        return prompt_finalizado, folder_seccion
+    except Exception as e:
+        print(f"❌ Error succionando prompt para {doc_id} de DynamoDB: {str(e)}")
+        return None, "01_LEGAL_Y_CONSTITUTIVO"
+
+# HILO CONCURRENTE EN PARALELO PARA INVOCAR A CLAUDE 4.5
+def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
+    # 1. Pedimos el prompt armado de la sección
+    prompt_inyectado, folder_sat = recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
+    
+    if not prompt_inyectado:
+        return None
+
     body_request = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 4000,
         "temperature": 0.2,
-        "messages": [{"role": "user", "content": prompt_final}]
+        "messages": [{"role": "user", "content": prompt_inyectado}]
     })
 
     try:
         model_id_real = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-        print(f"📡 Hilo Activo: Invocando de forma paralela [{doc_id}]")
+        print(f"📡 Hilo Activo PrivateLink: Transmitiendo a Bedrock para [{doc_id}]...")
         
         response = bedrock_client.invoke_model(
             modelId=model_id_real, contentType="application/json", accept="application/json", body=body_request
         )
         response_body = json.loads(response.get('body').read())
-        
-        # 🚀 REPARACIÓN REINA SÉNIOR DE PARSING: 
-        # Accedemos al primer elemento de la lista de contenido devuelta por la API real de Bedrock
-        texto_ia_generado = response_body['content'][0]['text'].replace("```html", "").replace("```", "").strip()
+        texto_ia_markdown = response_body['content']['text'].replace("```html", "").replace("```", "").strip()
         
         return {
             "id_documento": doc_id,
             "nombre_archivo": f"{doc_id}_{ano_fiscal}.pdf",
             "folder_seccion": folder_sat,
-            "prosa_completa_ia": texto_ia_generado
+            "prosa_completa_ia": texto_ia_markdown # Viaja el texto Markdown puro para el Paso 3
         }
     except Exception as e:
-        print(f"❌ Error crítico en la hebra del documento {doc_id}: {str(e)}")
+        print(f"❌ Error en ráfaga Bedrock para {doc_id}: {str(e)}")
         return None
 
 def handler(event, context):
-    print("🤖 Paso 2 Activo: Evaluando Petición mediante Fábrica de Secciones...")
+    print("🤖 Paso 2 Activo: Ejecutando Inyector elástico Multi-Prompt desde DynamoDB NoSQL...")
     
     tipo_peticion = event.get('tipo_peticion', 'GENERAR_TODAS')  
     seccion_target = event.get('seccion_target', '')            
     archivo_target = event.get('archivo_target', '')            
     
-    nombre_cliente = event.get('nombre_cliente', 'Contribuyente Auditado')
-    rfc_cliente = event.get('rfc_cliente', '')
+    nombre_cliente = event.get('nombre_cliente', 'ANTONIO IGNACIO CERVANTES REBOLLO')
+    rfc_cliente = event.get('rfc_cliente', 'CERA921023NN6')
     ano_fiscal = event.get('ano_fiscal', '2026')
-    conceptos_sat = event.get('string_catalogo_ia', 'Servicios profesionales integrales corporativos')
+    conceptos_sat = event.get('string_catalogo_ia', 'Servicios profesionales integrales corporativos contables')
 
-    archivos_por_procesar = []
+    # Catálogo elástico de validación de documentos requeridos por la aduana del Front
+    # (Esto lo puedes mapear dinámicamente haciendo un scan rápido a tu tabla de prompts en vez de un array estático)
+    catálogo_maestro_docs = ["CONTRATO_PRESTACION_SERVICIOS", "DICTAMEN_OPINION_32D", "BITACORA_CONTROL_ASISTENCIA", "INFORME_FLUJO_BANCARIO"]
     
+    archivos_por_procesar = []
     if tipo_peticion == 'GENERAR_TODAS':
-        archivos_por_procesar = list(DOCUMENT_FACTORY.keys())
+        archivos_por_procesar = catálogo_maestro_docs
     elif tipo_peticion == 'UNICA_SECCION':
-        archivos_por_procesar = [k for k, v in DOCUMENT_FACTORY.items() if v["folder"] == seccion_target]
+        # Fallback elástico temporal de filtrado por segmento
+        archivos_por_procesar = [archivo_target] if archivo_target else [catálogo_maestro_docs[0]]
     elif tipo_peticion == 'UNICO_ARCHIVO':
-        archivos_por_procesar = [archivo_target] if archivo_target in DOCUMENT_FACTORY else ["CONTRATO_PRESTACION_SERVICIOS"]
+        archivos_por_procesar = [archivo_target] if archivo_target else ["CONTRATO_PRESTACION_SERVICIOS"]
 
     resultados_redaccion_ia = []
 
-    # =========================================================================
-    # 🚀 GATILLO DE CONCURRENCIA MÁXIMA EN HILOS DE RED (DESTRUYE EL TIMEOUT)
-    # Lanza las 4 peticiones a Bedrock en paralelo en el mismo milisegundo
-    # =========================================================================
-    print(f"⚡ Desplegando Pool de hilos asíncronos para procesar {len(archivos_por_procesar)} documentos...")
+    # 🚀 EJECUCIÓN MULTIHILO CONCURRENTE SIMULTÁNEA
     with ThreadPoolExecutor(max_workers=len(archivos_por_procesar)) as executor:
-        # Mapeamos los trabajos concurrentes
         futuros = [
-            executor.submit(procesar_un_documento_en_hilo, doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
+            executor.submit(ejecutar_invocacion_bedrock_hilo, doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
             for doc_id in archivos_por_procesar
         ]
-        
-        # Recolectamos las respuestas conformes vayan terminando
         for futuro in futuros:
-            resultado = futuro.result()
-            if resultado:
-                resultados_redaccion_ia.append(resultado)
+            res = futuro.result()
+            if res:
+                resultados_redaccion_ia.append(res)
 
-    print(f"🎯 Concurrencia completada de forma exitosa. Lote listo con {len(resultados_redaccion_ia)} archivos.")
+    print(f"🎯 Lote de redacción completado. Se despachan {len(resultados_redaccion_ia)} textos Markdown hacia el Paso 3.")
     event['archivos_redactados_ia'] = resultados_redaccion_ia
     return event
