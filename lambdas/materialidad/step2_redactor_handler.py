@@ -41,9 +41,8 @@ def recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal
         print(f"❌ Error succionando prompt para {doc_id} de DynamoDB: {str(e)}")
         return None, "01_LEGAL_Y_CONSTITUTIVO"
 
-# HILO CONCURRENTE EN PARALELO PARA INVOCAR A CLAUDE 4.5
 def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat):
-    # 1. Pedimos el prompt armado de la sección
+    # 1. Recuperamos el prompt robustecido de DynamoDB
     prompt_inyectado, folder_sat = recuperar_y_completar_prompt(doc_id, nombre_cliente, rfc_cliente, ano_fiscal, conceptos_sat)
     
     if not prompt_inyectado:
@@ -61,19 +60,33 @@ def ejecutar_invocacion_bedrock_hilo(doc_id, nombre_cliente, rfc_cliente, ano_fi
         print(f"📡 Hilo Activo PrivateLink: Transmitiendo a Bedrock para [{doc_id}]...")
         
         response = bedrock_client.invoke_model(
-            modelId=model_id_real, contentType="application/json", accept="application/json", body=body_request
+            modelId=model_id_real, 
+            contentType="application/json", 
+            accept="application/json", 
+            body=body_request
         )
         response_body = json.loads(response.get('body').read())
-        texto_ia_markdown = response_body['content']['text'].replace("```html", "").replace("```", "").strip()
+        
+        # =========================================================================
+        # 🚀 REPARACIÓN REINA SÉNIOR DE TIPADO (ANICUILA EL LIST INDICES STR ERROR)
+        # Accedemos al primer elemento [0] de la lista antes de extraer la llave 'text'
+        # =========================================================================
+        lista_contenido = response_body.get('content', [])
+        if not lista_contenido or not isinstance(lista_contenido, list):
+            raise ValueError(f"Estructura hostil o vacía devuelta por Bedrock para {doc_id}")
+            
+        texto_ia_markdown = lista_contenido[0].get('text', '').replace("```html", "").replace("```", "").strip()
+        
+        print(f"✅ Hilo Exitoso: Se succionaron {len(texto_ia_markdown)} caracteres de prosa para [{doc_id}]")
         
         return {
             "id_documento": doc_id,
             "nombre_archivo": f"{doc_id}_{ano_fiscal}.pdf",
             "folder_seccion": folder_sat,
-            "prosa_completa_ia": texto_ia_markdown # Viaja el texto Markdown puro para el Paso 3
+            "prosa_completa_ia": texto_ia_markdown
         }
     except Exception as e:
-        print(f"❌ Error en ráfaga Bedrock para {doc_id}: {str(e)}")
+        print(f"❌ Error crítico en ráfaga Bedrock para {doc_id}: {str(e)}")
         return None
 
 def handler(event, context):
