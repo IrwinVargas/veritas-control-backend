@@ -173,12 +173,26 @@ def handler(event, context):
             ContentType='application/pdf'
         )
         pdf_buffer.close()
+        
+        DICCIONARIO_LLAVES_NATIVAS_FRONT = {
+            "CONTRATO_PRESTACION_SERVICIOS": "materialidad",
+            "ACTA_CONSTITUTIVA_RESPALDO": "acta_constitutiva",
+            "IDENTIFICACION_REPRESENTANTE_LEGAL": "identificacion_legal",
+            "DICTAMEN_OPINION_32D": "opinion_32d",
+            "CONSTANCIA_SITUACION_FISCAL_CEDULA": "constancia_fiscal",
+            "BITACORA_CONTROL_ASISTENCIA": "reporte_actividades", # Sincronizado a tu entrega original
+            "MEMORIA_FOTOGRAFICA_GEOLOCALIZADA": "evidencia_multimedia",
+            "INFORME_FLUJO_BANCARIO": "estado_cuenta",
+            "CONCILIACION_XML_COMPROBANTES": "zip_consolidado"
+        }
 
         # Habilitamos la descarga en caliente parcial en React de este archivo individual
-        campo_db_dinamico = nombre_file.lower().replace(".pdf", "").replace("-", "_")
+        llave_front_real = DICCIONARIO_LLAVES_NATIVAS_FRONT.get(doc["id_documento"], doc["id_documento"].lower())
+        
+        print(f"💾 Sincronizando en caliente: Escribiendo llave [{llave_front_real}] en DynamoDB para tu Front-End...")
         table.update_item(
             Key={'tenant_rfc': tenant_rfc},
-            UpdateExpression=f"SET {campo_db_dinamico} = :m, estatus_global = :s",
+            UpdateExpression=f"SET {llave_front_real} = :m, estatus_global = :s",
             ExpressionAttributeValues={
                 ':m': {
                     'status': 'COMPLETO',
@@ -188,5 +202,11 @@ def handler(event, context):
                 ':s': 'PROCESANDO'
             }
         )
+        
+    table.update_item(
+        Key={'tenant_rfc': tenant_rfc},
+        UpdateExpression="SET estatus_global = :s, porcentaje_avance = :p",
+        ExpressionAttributeValues={':s': 'COMPLETO', ':p': 100}
+    )
 
     return {"status": "FINISHED", "count": len(archivos_a_esculpir)}
