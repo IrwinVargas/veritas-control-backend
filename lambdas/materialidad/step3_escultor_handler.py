@@ -97,17 +97,13 @@ def parsear_markdown_a_html_reportlab(texto_markdown):
     if not texto_markdown:
         return ""
     
-    # 1. Sanitizamos saltos y caracteres extraños
+    # 🚀 REPARACIÓN REINA SÉNIOR DE PARSING:
+    # Barremos los hashtags de Markdown que se le escapan a Bedrock antes de fracturar las líneas
     texto = str(texto_markdown).replace("\r", "")
+    texto = texto.replace("# ", "").replace("## ", "").replace("### ", "")
     
-    # 2. Convertimos títulos Markdown (### o ##) a negritas con quiebre
-    texto = re.sub(r'###\s+(.*?)\n', r'<br/><b>\1</b><br/>', texto)
-    texto = re.sub(r'##\s+(.*?)\n', r'<br/><b>\1</b><br/>', texto)
-    
-    # 3. PARSER REINA: Traduce los asteriscos dobles de Bedrock (**texto**) a <b>texto</b>
+    # Traducimos asteriscos dobles (**texto**) a negritas válidas HTML de ReportLab
     texto = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', texto)
-    
-    # 4. Traduce viñetas ordinarias de guiones a tags limpios
     texto = re.sub(r'-\s+(.*?)\n', r'• \1<br/>', texto)
     
     return texto
