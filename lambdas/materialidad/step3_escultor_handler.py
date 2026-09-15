@@ -41,15 +41,13 @@ def handler(event, context):
 
         # Inicializamos el lienzo en memoria RAM
         pdf_buffer = io.BytesIO()
+        
         doc_template = SimpleDocTemplate(
             pdf_buffer, pagesize=letter,
             rightMargin=45, leftMargin=45, topMargin=110, bottomMargin=75
         )
         
         story = []
-        styles = getSampleStyleSheet()
-        
-        # Estilo de prosa corporativa ROUCHERS
         style_legal_body = ParagraphStyle(
             'DynamicLegalBody', fontName='Helvetica', fontSize=9.5, leading=16,
             textColor=colors.HexColor("#334155"), alignment=TA_JUSTIFY, spaceAfter=12
@@ -62,11 +60,10 @@ def handler(event, context):
 
         # Compilación vectorial del PDF
         doc_template.build(story)
-        pdf_buffer.flush() 
         pdf_bytes_reales = pdf_buffer.getvalue()
         
-        if len(pdf_bytes_reales) == 0:
-            print(f"⚠️ ¡ALERTA CRÍTICA! El buffer para {nombre_file} se generó vacío. Re-intentando succión estricta...")
+        if not pdf_bytes_reales or len(pdf_bytes_reales) < 100:
+            print(f"⚠️ Alerta: getvalue() regresó vacío para {nombre_file}. Forzando rebobinado de puntero...")
             pdf_buffer.seek(0)
             pdf_bytes_reales = pdf_buffer.read()
 
