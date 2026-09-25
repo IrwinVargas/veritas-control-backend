@@ -1660,6 +1660,54 @@ Resources:
             RestApiId: !Ref VeritasApi
     Metadata:
       BuildMethod: python3.10
+  
+  GetAdminAnalyticsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/admin/
+      Handler: get_analytics_handler.handler
+      Environment:
+        Variables:
+          TENANTS_TABLE_NAME: !Sub 'veritas-control-tenants-config-${Environment}'
+      Policies:
+        # Principio de privilegio mínimo: solo lectura a tu tabla de DynamoDB
+        - DynamoDBCrudPolicy:
+            TableName: !Sub 'veritas-control-tenants-config-${Environment}'
+      Events:
+        GetAnalyticsApi:
+          Type: Api
+          Properties:
+            Path: /admin/dashboard-analytics
+            Method: get
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.11
+
+  CreateTenantFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/admin/
+      Handler: create_tenant_handler.handler
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !Sub 'veritas-control-event-bus-${Environment}'
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Sub 'veritas-control-event-bus-${Environment}'
+      Events:
+        CreateTenantApi:
+          Type: Api
+          Properties:
+            Path: /admin/tenant
+            Method: post
+            RestApiId: !Ref VeritasApi
+    Metadata:
+      BuildMethod: python3.11
+
+  VeritasEnterpriseEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub 'veritas-control-event-bus-${Environment}'
 
   S3BucketTemporalSAT:
     Type: AWS::S3::Bucket

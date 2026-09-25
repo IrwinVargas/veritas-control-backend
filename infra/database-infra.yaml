@@ -90,6 +90,18 @@ Resources:
         Name: id_documento # HASH Key (ej. "CONTRATO_PRESTACION_SERVICIOS", "DICTAMEN_OPINION_32D")
         Type: String
 
+  VeritasTenantsConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'veritas-control-tenants-config-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tenant_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenant_id
+          KeyType: HASH
+
   VeritasDbSubnetGroupV2:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
