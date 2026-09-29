@@ -40,7 +40,7 @@ def handler(event, context):
         # 1. 🛡️ ADUANA CRÍTICA DE VERIFICACIÓN DE IDENTIDAD FINANCIERA
         # Valida matemáticamente que el evento fue emitido de verdad por Stripe
         stripe_event = stripe.Webhook.construct_event(
-            body_str, stripe_signature, STRIPE_WEBHOOK_SECRET
+            body_str, stripe_signature, webhook_secret
         )
         print(f"✅ Firma validada con éxito. Tipo de evento Stripe: {stripe_event['type']}")
 
