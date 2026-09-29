@@ -1829,20 +1829,22 @@ Resources:
     Metadata:
       BuildMethod: python3.11
 
-  StripeWebhookFunction:
+  StripeWebhookLambda:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: lambdas/admin/
+      FunctionName: !Sub 'veritas-control-stripe-webhook-${Environment}'
       Handler: stripe_webhook_handler.handler
       Environment:
         Variables:
-          # 🚀 REFERENCIA POR NOMBRE COMERCIAL: Tu código de Python descargará el JSON usando este alias fijo
           STRIPE_SECRET_NAME: "Veritas-Stripe-Enterprise-Keys"
           EVENT_BUS_NAME: !Sub 'veritas-control-event-bus-${Environment}'
       Policies:
+        # 1. Permiso nativo para inyectar los eventos al Bus central
         - EventBridgePutEventsPolicy:
             EventBusName: !Sub 'veritas-control-event-bus-${Environment}'
-        # 🛡️ PRIVILEGIO MÍNIMO: Permiso estricto para leer el secreto que creamos en la consola
+            
+        # 🛡️ Permiso nativo IAM puro inmune a errores de validación de esquemas
         - Statement:
             - Effect: "Allow"
               Action:
