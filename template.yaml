@@ -1815,7 +1815,10 @@ Resources:
       Environment:
         Variables:
           EVENT_BUS_NAME: !Sub 'veritas-control-event-bus-${Environment}'
+          TENANTS_TABLE_NAME: !Sub 'veritas-control-tenants-config-${Environment}'
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub 'veritas-control-tenants-config-${Environment}'
         - EventBridgePutEventsPolicy:
             EventBusName: !Sub 'veritas-control-event-bus-${Environment}'
       Events:
