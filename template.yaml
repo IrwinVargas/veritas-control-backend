@@ -767,8 +767,8 @@ Resources:
                 passthroughBehavior: "when_no_match"
                 
           /admin/dashboard-analytics:
-            post:
-              summary: "Crear cliente de manera manual"
+            get:
+              summary: "Consultar lista negra del sat"
               security:
                 - CognitoAuthorizer: []
               x-amazon-apigateway-integration:
@@ -777,7 +777,7 @@ Resources:
                 uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAdminAnalyticsFunction.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
-                '201': { description: "Cliente creado." }
+                '200': { description: "Estatus recuperado en 2ms." }
             options:
               summary: "CORS Metricas"
               consumes:
@@ -803,7 +803,7 @@ Resources:
                     statusCode: "200"
                     responseParameters:
                       method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
                       method.response.header.Access-Control-Allow-Origin: "'*'"
                     responseTemplates:
                       application/json: ""
@@ -1795,7 +1795,6 @@ Resources:
         Variables:
           TENANTS_TABLE_NAME: !Sub 'veritas-control-tenants-config-${Environment}'
       Policies:
-        # Principio de privilegio mínimo: solo lectura a tu tabla de DynamoDB
         - DynamoDBCrudPolicy:
             TableName: !Sub 'veritas-control-tenants-config-${Environment}'
       Events:
