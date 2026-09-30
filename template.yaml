@@ -1811,7 +1811,6 @@ Resources:
   CreateTenantFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'veritas-control-create-tenant-${Environment}'
       CodeUri: lambdas/admin/
       Handler: create_tenant_handler.handler
       Environment:
