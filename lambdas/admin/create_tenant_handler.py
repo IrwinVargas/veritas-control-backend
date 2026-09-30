@@ -3,35 +3,31 @@ import boto3
 import os
 import datetime
 
-# Inicialización de clientes de infraestructura AWS en la raíz del archivo
-# 🚀 EventBridge para despachar de forma asíncrona el flujo a Postgres, Cobros y Bienvenida
+# Inicialización atómica de infraestructura en la raíz del archivo (Inmune a fallas de build)
 eventbridge_client = boto3.client('events')
+dynamodb_resource = boto3.resource('dynamodb')
 
 BUS_NAME = os.environ.get('EVENT_BUS_NAME', 'Veritas-Enterprise-EventBus')
+TABLE_NAME = os.environ.get('TENANTS_TABLE_NAME', 'Veritas_Tenants_Config')
+tenants_table = dynamodb_resource.Table(TABLE_NAME)
 
 def handler(event, context):
-    print("📥 [Admin Subsystem] Petición POST de alta Multi-Tenant recibida de forma plana")
+    print(f"📥 [Admin Subsystem] Procesando alta de bufete en tabla: {TABLE_NAME}")
 
     # 1. 🛡️ ADUANA PERIMETRAL DE PRIVILEGIOS SUPER-ADMIN (JWT COGNITO)
     request_context = event.get('requestContext', {})
     authorizer = request_context.get('authorizer', {})
     claims = authorizer.get('claims', {})
     
-    cognito_groups = claims.get('cognito:groups', '')
-    custom_role = claims.get('custom:role', '')
-
-    if 'SUPER_ADMIN' not in cognito_groups and custom_role != 'SuperAdmin':
+    if 'SUPER_ADMIN' not in claims.get('cognito:groups', '') and claims.get('custom:role', '') != 'SuperAdmin':
         return {
             'statusCode': 403,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Acceso denegado. Operación exclusiva del dueño del SaaS.'})
+            'body': json.dumps({'error': 'Acceso denegado. Se requiere rol de SuperAdmin.'})
         }
 
     try:
-        # 2. PARSEO DE CREDENCIALES COMERCIALES
-        body_str = event.get('body', '{}')
-        payload_data = json.loads(body_str)
-
+        payload_data = json.loads(event.get('body', '{}'))
         nombre_bufete = payload_data.get('nombre_bufete')
         socio_admin = payload_data.get('socio_admin')
         correo_admin = payload_data.get('correo_admin')
@@ -40,57 +36,73 @@ def handler(event, context):
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Campos obligatorios ausentes en el formulario.'})
+                'body': json.dumps({'error': 'Campos obligatorios ausentes.'})
             }
 
-        # 3. 🧠 REGLA DE NEGOCIO: Estructuramos la Verdad del Inquilino
         tenant_id = f"tenant-uuid-{int(datetime.datetime.now().timestamp())}"
-        
-        # Diccionario plano nativo, inmune a fallas de tipado o empaquetado de clases externas
+        costo_membresia = float(payload_data.get("costo", 0.0))
+        plan_membresia = payload_data.get("plan", "ENTERPRISE")
+        frecuencia = payload_data.get("frecuencia", "MENSUAL")
+
+        # =========================================================================
+        # 🚀 LA REPARACIÓN MAESTRA: Sembramos el registro base de forma síncrona.
+        # Así, cuando el front haga GET de inmediato, los datos ya existirán en Dynamo.
+        # =========================================================================
+        print(f"⏳ Asentando registro comercial in-line para {tenant_id} en DynamoDB...")
+        tenants_table.put_item(
+            Item={
+                'tenant_id': tenant_id,
+                'razon_social': nombre_bufete,
+                'nombre_comercial': nombre_bufete,
+                'socio_root_name': socio_admin,
+                'socio_root_email': correo_admin,
+                'plan_membresia': plan_membresia,
+                'costo_membresia': str(costo_membresia), # Guardado como string/número seguro
+                'frecuencia_facturacion': frecuencia,
+                'fecha_ultimo_pago': datetime.date.today().isoformat(),
+                'fecha_proximo_pago': (datetime.date.today() + datetime.timedelta(days=30)).isoformat(),
+                'estatus_infraestructura': 'ACTIVO',
+                'usuarios_contador_event_driven': 1 # Inicializa la cuenta para el GET
+            }
+        )
+        print("✅ Registro base guardado con éxito en DynamoDB.")
+
+        # 2. 📡 PITAZO ASÍNCRONO: Avisamos a EventBridge para que corra el resto en paralelo
         event_payload = {
             "tenant_id": tenant_id,
             "nombre_bufete": nombre_bufete,
             "socio_admin_name": socio_admin,
             "socio_admin_email": correo_admin,
-            "config_membresia": {
-                "plan": payload_data.get("plan", "ENTERPRISE"),
-                "costo": float(payload_data.get("costo", 0.0)),
-                "frecuencia": payload_data.get("frecuencia", "MENSUAL")
-            },
+            "config_membresia": {"plan": plan_membresia, "costo": costo_membresia, "frecuencia": frecuencia},
             "timestamp_alta": datetime.datetime.now().isoformat()
         }
 
-        # 4. 🚀 EMISIÓN DE EVENTO ASÍNCRONO EN AMAZON EVENTBRIDGE
-        print(f"⏳ Publicando evento TenantCreated en el bus {BUS_NAME} para el id: {tenant_id}")
         eventbridge_client.put_events(
-            Entries=[
-                {
-                    'Source': 'veritas.admin.subsystem',
-                    'DetailType': 'TenantCreated',
-                    'Detail': json.dumps(event_payload),
-                    'EventBusName': BUS_NAME
-                }
-            ]
+            Entries=[{
+                'Source': 'veritas.admin.subsystem',
+                'DetailType': 'TenantCreated',
+                'Detail': json.dumps(event_payload),
+                'EventBusName': BUS_NAME
+            }]
         )
 
-        # 5. RETORNO SÍNCRONO RESPONSIVO PARA TU REJILLA EN REACT
-        # Envía la estructura exacta que traga el Front-End para pintarse al instante
+        # 3. RESPUESTA HOMOLOGADA PARA EL FRONT-END
         response_front = {
             "id": tenant_id,
-            "nombreBufete": event_payload["nombre_bufete"],
-            "socioAdmin": event_payload["socio_admin_name"],
-            "correoAdmin": event_payload["socio_admin_email"],
-            "usuariosRegistrados": 1, # Socio root inicial
-            "planAfiliado": event_payload["config_membresia"]["plan"],
-            "costoMembresia": event_payload["config_membresia"]["costo"],
-            "frecuenciaPago": event_payload["config_membresia"]["frecuencia"],
+            "nombreBufete": nombre_bufete,
+            "socioAdmin": socio_admin,
+            "correoAdmin": correo_admin,
+            "usuariosRegistrados": 1,
+            "planAfiliado": plan_membresia,
+            "costoMembresia": costo_membresia,
+            "frecuenciaPago": frecuencia,
             "ultimaFechaPago": datetime.date.today().isoformat(),
             "proximaFechaPago": (datetime.date.today() + datetime.timedelta(days=30)).isoformat(),
             "estatusApp": "ACTIVO"
         }
 
         return {
-            'statusCode': 202, # Accepted: El búnker asimiló la orden y la procesa en paralelo
+            'statusCode': 202,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
@@ -101,9 +113,9 @@ def handler(event, context):
         }
 
     except Exception as error:
-        print(f"🛑 Falla crítica en pasarela de aprovisionamiento admin: {str(error)}")
+        print(f"🛑 Falla crítica en alta de bufete: {str(error)}")
         return {
             'statusCode': 500,
             'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Error interno en la infraestructura AWS Lambda', 'detalle': str(error)})
+            'body': json.dumps({'error': 'Error en la infraestructura AWS', 'detalle': str(error)})
         }
