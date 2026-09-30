@@ -774,7 +774,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: "aws_proxy"
                 httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NotificacionesModificarLambda.Arn}/invocations'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAdminAnalyticsFunction.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '201': { description: "Cliente creado." }
@@ -816,7 +816,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: "aws_proxy"
                 httpMethod: "POST"
-                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NotificacionesModificarLambda.Arn}/invocations'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateTenantFunction.Arn}/invocations'
                 passthroughBehavior: "when_no_match"
               responses:
                 '201': { description: "Cliente creado." }
@@ -1811,6 +1811,7 @@ Resources:
   CreateTenantFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub 'veritas-control-create-tenant-${Environment}'
       CodeUri: lambdas/admin/
       Handler: create_tenant_handler.handler
       Environment:
