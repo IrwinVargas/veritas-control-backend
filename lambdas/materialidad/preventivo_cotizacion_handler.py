@@ -8,7 +8,7 @@ dynamodb = boto3.resource('dynamodb')
 TABLA_NAME = os.environ.get('TABLA_MATERIALIDAD')
 
 def handler(event, context):
-    print("--- EVENTO RECIBIDO DESDE API GATEWAY ---")
+    print("--- EVENTO RECIBIDO EN COTIZACIÓN (BACKEND) ---")
     print(json.dumps(event))
     
     try:
@@ -33,54 +33,64 @@ def handler(event, context):
         tipo_notificacion = body.get('tipo_notificacion', 'INICIO')
 
         if not rfc or not nombre_enlace or not telefono_contacto:
-            return build_response(400, {
-                "error": "Faltan parámetros obligatorios.", 
-                "campos_requeridos": ["rfc", "nombre_enlace", "telefono_contacto"]
-            })
+            return build_response(400, {"error": "Faltan parámetros obligatorios."})
 
-        usuario_id = "SISTEMA_ANONIMO"
-        request_context = event.get('requestContext', {})
-        if 'authorizer' in request_context and 'claims' in request_context['authorizer']:
-            usuario_id = request_context['authorizer']['claims'].get('sub', 'SISTEMA_ANONIMO')
+        # 🔐 MULTI-TENANT EXACTO: Extraemos el custom:tenant_id de Cognito tal cual lo hace tu lector
+        authorizer = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
+        tenant_id = authorizer.get('custom:tenant_id')
+        usuario_id = authorizer.get('sub', 'SISTEMA_ANONIMO')
 
+        if not tenant_id:
+            return build_response(400, {"error": "No se pudo identificar el tenant_id del token de Cognito."})
+
+        # 🔑 UNIFICACIÓN DE HASH KEY: Mismo formato "TENANT#RFC" que usa tu listar_archivos_handler
+        hash_key = f"{tenant_id}#{rfc.upper().strip()}"
         timestamp_utc = datetime.utcnow().isoformat() + 'Z'
         
-        # 🔑 ADAPTACIÓN CRÍTICA: Mapeamos la primary key exacta a 'tenant_rfc'
+        # 📂 INICIALIZACIÓN DEL MAPA DE ARCHIVOS: 
+        # Inyectamos el nodo comercial y dejamos listo el benchmarking para que React conmute de paso
         item_dynamo = {
-            'tenant_rfc': rfc,  # Requisito indispensable de tu database-infra.yaml
-            'expediente_id': f"EXP-{rfc}",
+            'tenant_rfc': hash_key, # Llave unificada
+            'estatus_expediente': 'PROCESANDO',
             'nombre_cliente': nombre_cliente,
-            'objeto_entregable': objeto_entregable,
-            'rama_especialidad': rama_especialidad,
-            'inversion_inicial': int(inversion_inicial),
-            'monto_contrato': int(monto_contrato),
-            'duracion_meses': int(duracion_meses),
-            'nombre_enlace': nombre_enlace.strip(),
-            'telefono_contacto': telefono_contacto.strip(),
-            'tipo_notificacion': tipo_notificacion,
-            'registrado_por': usuario_id,
             'fecha_registro': timestamp_utc,
-            'fase_actual': "COTIZACION",
-            'estatus_fase': "COMPLETO"
+            'registrado_por': usuario_id,
+            'datos_comerciales': {
+                'objeto_entregable': objeto_entregable,
+                'rama_especialidad': rama_especialidad,
+                'inversion_inicial': int(inversion_inicial),
+                'monto_contrato': int(monto_contrato),
+                'duracion_meses': int(duracion_meses),
+                'nombre_enlace': nombre_enlace.strip(),
+                'telefono_contacto': telefono_contacto.strip(),
+                'tipo_notificacion': tipo_notificacion
+            },
+            'archivos': {
+                'cotizacion': {
+                    'status': 'COMPLETO',
+                    'updated_at': timestamp_utc
+                },
+                'benchmarking': {
+                    'status': 'PENDIENTE', # Al estar PENDIENTE, React forzará el render de la Etapa 2
+                    'updated_at': timestamp_utc
+                }
+            }
         }
 
-        print(f"Escribiendo en Tabla Real '{TABLA_NAME}': {json.dumps(item_dynamo)}")
+        print(f"Insertando Item Multi-tenant en '{TABLA_NAME}': {json.dumps(item_dynamo)}")
 
         tabla = dynamodb.Table(TABLA_NAME)
         tabla.put_item(Item=item_dynamo)
         
-        print(f"✅ Registro insertado exitosamente en la tabla simplificada para el RFC: {rfc}")
+        print(f"✅ Éxito: Registro Multi-tenant insertado para la llave {hash_key}")
 
         return build_response(200, {
-            "message": "Información de cotización guardada correctamente.",
-            "expediente_id": f"EXP-{rfc}",
-            "tenant_rfc": rfc
+            "message": "Cotización sellada correctamente de forma multi-tenant.",
+            "tenant_rfc": hash_key
         })
 
     except Exception as e:
-        print(f"💥 ERROR EN HANDLER MATERIALIDAD: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"💥 ERROR JURÍDICO BACKEND: {str(e)}")
         return build_response(500, {"error": "Internal Server Error", "mensaje": str(e)})
 
 def build_response(status_code, body_data):
